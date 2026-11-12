@@ -74,6 +74,7 @@ jobs:
           --mainExe Hayabumi.exe
           --packTitle Hayabumi
           --packAuthors Hayabumi
+          --runtime win-x64
 
       - name: Upload to GitHub Releases
         run: >
