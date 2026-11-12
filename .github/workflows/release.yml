@@ -1,9 +1,15 @@
 name: Release
 
-# v0.1.0 のようなタグを push すると、setup.exe と自動更新用のパッケージを GitHub Releases に登録する
+# v0.1.0 のようなタグを push するか、Actions の画面からバージョンを指定して実行すると、
+# setup.exe と自動更新用のパッケージを GitHub Releases に登録する（タグがなければ作られる）
 on:
   push:
     tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "バージョン（例: 0.1.0）"
+        required: true
 
 permissions:
   contents: write
@@ -14,6 +20,8 @@ jobs:
     env:
       DOTNET_NOLOGO: true
       DOTNET_CLI_TELEMETRY_OPTOUT: true
+      # vpk は .NET 8 向けのツールのため、.NET 10 しかない環境でも動くようにする
+      DOTNET_ROLL_FORWARD: Major
       REPO_URL: ${{ github.server_url }}/${{ github.repository }}
     steps:
       - uses: actions/checkout@v4
@@ -22,10 +30,15 @@ jobs:
         with:
           global-json-file: global.json
 
-      - name: Read version from tag
+      - name: Read version
         shell: pwsh
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+          REF_NAME: ${{ github.ref_name }}
         run: |
-          $version = "${{ github.ref_name }}".TrimStart("v")
+          $version = $env:INPUT_VERSION
+          if ([string]::IsNullOrEmpty($version)) { $version = $env:REF_NAME.TrimStart("v") }
+          if ($version -notmatch '^\d+\.\d+\.\d+$') { throw "バージョンの形式が正しくありません: $version" }
           "VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Append
 
       - name: Test
@@ -59,4 +72,5 @@ jobs:
           --token ${{ secrets.GITHUB_TOKEN }}
           --publish
           --releaseName "Hayabumi ${{ env.VERSION }}"
-          --tag ${{ github.ref_name }}
+          --tag v${{ env.VERSION }}
+          --targetCommitish ${{ github.sha }}
