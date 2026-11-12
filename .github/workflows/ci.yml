@@ -6,6 +6,9 @@ on:
   pull_request:
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: windows-latest
@@ -51,6 +54,20 @@ jobs:
           name: screenshots-${{ github.sha }}
           path: ${{ runner.temp }}/shots
           retention-days: 14
+
+      # 開発環境から画面を確認できるよう、確認用のプレリリースにも置く（自動更新の対象にはならない）
+      - name: Publish screenshots to prerelease
+        if: github.event_name == 'push'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $shots = Join-Path $env:RUNNER_TEMP "shots"
+          gh release view ci-screenshots 2>$null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create ci-screenshots --prerelease --title "画面の確認用（自動）" --notes "CI が保存した画面です。インストール用ではありません。" --target $env:GITHUB_SHA
+          }
+          gh release upload ci-screenshots (Get-ChildItem $shots -Filter *.png).FullName --clobber
 
       - name: Upload portable build
         uses: actions/upload-artifact@v4
