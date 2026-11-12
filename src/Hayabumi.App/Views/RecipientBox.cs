@@ -17,6 +17,8 @@ public sealed class RecipientBox : TextBox
 
     public RecipientBox()
     {
+        // TextBox を継承したコントロールにも、標準（Fluent）の TextBox の見た目を使う
+        SetResourceReference(StyleProperty, typeof(TextBox));
         Padding = new Thickness(4, 3, 4, 3);
         VerticalContentAlignment = VerticalAlignment.Center;
         _list = new ListBox { MaxHeight = 240, MinWidth = 320, DisplayMemberPath = nameof(ContactSuggestion.Label) };
