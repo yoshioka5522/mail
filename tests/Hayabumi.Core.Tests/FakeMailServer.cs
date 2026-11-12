@@ -41,6 +41,19 @@ internal sealed class FakeMailServer : IMailStoreSessionFactory
         public Task<IRemoteFolder> OpenFolderAsync(string fullName, bool writable, CancellationToken cancellationToken)
             => Task.FromResult<IRemoteFolder>(new Opened(server, server.Folders[fullName]));
 
+        public async Task AppendAsync(string folderFullName, Stream message, MessageFlags flags, CancellationToken cancellationToken)
+        {
+            using var buffer = new MemoryStream();
+            await message.CopyToAsync(buffer, cancellationToken);
+            var raw = buffer.ToArray();
+            var parsed = Hayabumi.Core.Mime.MessageParser.Parse(new MemoryStream(raw));
+            var fake = new FakeMessage(new NewMessage { Subject = parsed.Subject, FromAddress = parsed.FromAddress, Date = parsed.Date, Size = raw.Length }, raw)
+            {
+                Flags = flags,
+            };
+            server.Folders[folderFullName].Add(fake);
+        }
+
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
 

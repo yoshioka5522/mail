@@ -128,6 +128,23 @@ public sealed class ImapIntegrationTests : IDisposable
         Assert.Empty(_db.Messages.Search("見積"));
         Assert.Equal(2, _db.Folders.Get(inbox.Id)!.UnreadCount);
 
+        // 4. 送信済みフォルダへの保存（APPEND）
+        var sentMessage = Hayabumi.Core.Compose.MessageBuilder.Build(
+            new Hayabumi.Core.Compose.Draft { To = "a@example.jp", Bcc = "b@example.jp", Subject = "送信済みの保存", Body = "本文" }, account);
+        using (var buffer = new MemoryStream())
+        {
+            await sentMessage.WriteToAsync(buffer, Ct);
+            buffer.Position = 0;
+            await using var session = await factory.ConnectAsync(account, Ct);
+            await session.AppendAsync(folders.Single(f => f.Role == FolderRole.Sent).FullName, buffer, MessageFlags.Seen, Ct);
+        }
+
+        await synchronizer.SyncAsync(account, null, Ct);
+        var sentFolder = folders.Single(f => f.Role == FolderRole.Sent);
+        var saved = Assert.Single(_db.Messages.GetPage(sentFolder.Id, 0, 10));
+        Assert.Equal("送信済みの保存", saved.Subject);
+        Assert.False(saved.IsUnread);
+
         await admin.DisconnectAsync(true, Ct);
     }
 

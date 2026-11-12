@@ -109,6 +109,14 @@ public sealed class ImapMailStoreSession(ImapClient client) : IMailStoreSession
         return new ImapRemoteFolder(client, folder);
     }
 
+    public async Task AppendAsync(string folderFullName, Stream message, MessageFlags flags, CancellationToken cancellationToken)
+    {
+        var folder = await client.GetFolderAsync(folderFullName, cancellationToken).ConfigureAwait(false);
+        var mime = await MessageParser.LoadAsync(message, cancellationToken).ConfigureAwait(false);
+        var request = new AppendRequest(mime, ImapRemoteFolder.ToKitFlags(flags)) { InternalDate = mime.Date };
+        await folder.AppendAsync(request, cancellationToken).ConfigureAwait(false);
+    }
+
     public async ValueTask DisposeAsync()
     {
         try
@@ -312,7 +320,7 @@ internal sealed class ImapRemoteFolder(ImapClient client, IMailFolder folder) : 
         return result;
     }
 
-    private static KitFlags ToKitFlags(MessageFlags flags)
+    internal static KitFlags ToKitFlags(MessageFlags flags)
     {
         var result = KitFlags.None;
         if (flags.HasFlag(MessageFlags.Seen)) result |= KitFlags.Seen;

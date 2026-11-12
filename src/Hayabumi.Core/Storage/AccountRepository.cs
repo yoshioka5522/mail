@@ -7,7 +7,7 @@ public sealed class AccountRepository(MailDatabase database)
 {
     private const string SelectColumns = """
         SELECT id, display_name, email_address, incoming_protocol, incoming_host, incoming_port, incoming_security,
-               outgoing_host, outgoing_port, outgoing_security, user_name, auth_method, sort_order
+               outgoing_host, outgoing_port, outgoing_security, user_name, auth_method, sort_order, signature
         FROM accounts
         """;
 
@@ -18,15 +18,15 @@ public sealed class AccountRepository(MailDatabase database)
         var id = connection.Scalar<long>(
             """
             INSERT INTO accounts (display_name, email_address, incoming_protocol, incoming_host, incoming_port, incoming_security,
-                                  outgoing_host, outgoing_port, outgoing_security, user_name, auth_method, sort_order, created_at)
-            VALUES ($dn, $ea, $ip, $ih, $iport, $is, $oh, $oport, $os, $un, $am, $so, $ca)
+                                  outgoing_host, outgoing_port, outgoing_security, user_name, auth_method, sort_order, signature, created_at)
+            VALUES ($dn, $ea, $ip, $ih, $iport, $is, $oh, $oport, $os, $un, $am, $so, $sig, $ca)
             RETURNING id;
             """,
             ("$dn", account.DisplayName), ("$ea", account.EmailAddress), ("$ip", (int)account.IncomingProtocol),
             ("$ih", account.Incoming.Host), ("$iport", account.Incoming.Port), ("$is", (int)account.Incoming.Security),
             ("$oh", account.Outgoing.Host), ("$oport", account.Outgoing.Port), ("$os", (int)account.Outgoing.Security),
             ("$un", account.UserName), ("$am", (int)account.AuthMethod), ("$so", account.SortOrder),
-            ("$ca", DateTimeOffset.UtcNow.ToUnixMs()));
+            ("$sig", account.Signature), ("$ca", DateTimeOffset.UtcNow.ToUnixMs()));
         return account with { Id = id };
     }
 
@@ -38,13 +38,13 @@ public sealed class AccountRepository(MailDatabase database)
             """
             UPDATE accounts SET display_name = $dn, email_address = $ea, incoming_protocol = $ip, incoming_host = $ih,
                 incoming_port = $iport, incoming_security = $is, outgoing_host = $oh, outgoing_port = $oport,
-                outgoing_security = $os, user_name = $un, auth_method = $am, sort_order = $so
+                outgoing_security = $os, user_name = $un, auth_method = $am, sort_order = $so, signature = $sig
             WHERE id = $id;
             """,
             ("$dn", account.DisplayName), ("$ea", account.EmailAddress), ("$ip", (int)account.IncomingProtocol),
             ("$ih", account.Incoming.Host), ("$iport", account.Incoming.Port), ("$is", (int)account.Incoming.Security),
             ("$oh", account.Outgoing.Host), ("$oport", account.Outgoing.Port), ("$os", (int)account.Outgoing.Security),
-            ("$un", account.UserName), ("$am", (int)account.AuthMethod), ("$so", account.SortOrder), ("$id", account.Id));
+            ("$un", account.UserName), ("$am", (int)account.AuthMethod), ("$so", account.SortOrder), ("$sig", account.Signature), ("$id", account.Id));
     }
 
     public IReadOnlyList<Account> GetAll()
@@ -90,5 +90,6 @@ public sealed class AccountRepository(MailDatabase database)
         UserName = r.GetString(10),
         AuthMethod = (AuthMethod)r.GetInt32(11),
         SortOrder = r.GetInt32(12),
+        Signature = r.GetString(13),
     };
 }

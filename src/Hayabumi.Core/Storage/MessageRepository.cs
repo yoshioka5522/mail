@@ -84,6 +84,15 @@ public sealed class MessageRepository(MailDatabase database)
         return reader.Read() ? ReadListItem(reader) : null;
     }
 
+    /// <summary>役割（送信済みなど）からフォルダのフルネームを探す。</summary>
+    public string? FindFolderNameByRole(long accountId, FolderRole role)
+    {
+        using var connection = database.Open();
+        return connection.Scalar<string>(
+            "SELECT full_name FROM folders WHERE account_id = $a AND role = $r ORDER BY id LIMIT 1;",
+            ("$a", accountId), ("$r", (int)role));
+    }
+
     public int Count(long folderId)
     {
         using var connection = database.Open();

@@ -19,6 +19,9 @@ public interface IMailStoreSession : IAsyncDisposable
     Task<IReadOnlyList<RemoteFolderInfo>> GetFoldersAsync(CancellationToken cancellationToken);
 
     Task<IRemoteFolder> OpenFolderAsync(string fullName, bool writable, CancellationToken cancellationToken);
+
+    /// <summary>メッセージをフォルダに保存する（送信済み・下書きへの保存）。</summary>
+    Task AppendAsync(string folderFullName, Stream message, MessageFlags flags, CancellationToken cancellationToken);
 }
 
 public interface IMailStoreSessionFactory

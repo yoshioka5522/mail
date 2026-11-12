@@ -40,6 +40,12 @@ public sealed record Account
     public required AuthMethod AuthMethod { get; init; }
     public int SortOrder { get; init; }
 
+    /// <summary>署名（本文の末尾に自動で挿入する）。</summary>
+    public string Signature { get; init; } = string.Empty;
+
+    /// <summary>メールアドレスのドメイン（社外宛ての判定に使う）。</summary>
+    public string Domain => EmailAddress.Contains('@', StringComparison.Ordinal) ? EmailAddress[(EmailAddress.LastIndexOf('@') + 1)..].ToLowerInvariant() : string.Empty;
+
     /// <summary>資格情報マネージャーに保存するときのキー。</summary>
     public string CredentialKey => $"Hayabumi/account/{Id}";
 }

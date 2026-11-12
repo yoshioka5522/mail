@@ -96,6 +96,53 @@ internal static class SchemaMigrations
             value   TEXT NOT NULL
         );
         """,
+
+        // 2: 送信（下書き・送信待ち）、署名、連絡先
+        """
+        ALTER TABLE accounts ADD COLUMN signature TEXT NOT NULL DEFAULT '';
+
+        CREATE TABLE drafts (
+            id          INTEGER PRIMARY KEY,
+            account_id  INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+            content     TEXT    NOT NULL,
+            updated_at  INTEGER NOT NULL
+        );
+
+        CREATE TABLE outbox (
+            id          INTEGER PRIMARY KEY,
+            account_id  INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+            file_path   TEXT    NOT NULL,
+            draft       TEXT    NOT NULL,
+            send_at     INTEGER NOT NULL,
+            attempts    INTEGER NOT NULL DEFAULT 0,
+            last_error  TEXT,
+            failed      INTEGER NOT NULL DEFAULT 0
+        );
+
+        CREATE INDEX ix_outbox_send_at ON outbox (send_at);
+
+        CREATE TABLE contacts (
+            id              INTEGER PRIMARY KEY,
+            address         TEXT    NOT NULL COLLATE NOCASE UNIQUE,
+            name            TEXT    NOT NULL DEFAULT '',
+            company         TEXT    NOT NULL DEFAULT '',
+            note            TEXT    NOT NULL DEFAULT '',
+            is_saved        INTEGER NOT NULL DEFAULT 0,
+            use_count       INTEGER NOT NULL DEFAULT 0,
+            last_used       INTEGER NOT NULL DEFAULT 0
+        );
+
+        CREATE TABLE contact_groups (
+            id      INTEGER PRIMARY KEY,
+            name    TEXT NOT NULL UNIQUE
+        );
+
+        CREATE TABLE contact_group_members (
+            group_id    INTEGER NOT NULL REFERENCES contact_groups(id) ON DELETE CASCADE,
+            contact_id  INTEGER NOT NULL REFERENCES contacts(id) ON DELETE CASCADE,
+            PRIMARY KEY (group_id, contact_id)
+        );
+        """,
     ];
 
     public static int LatestVersion => s_migrations.Length;
