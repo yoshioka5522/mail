@@ -22,7 +22,15 @@ public sealed class AccountSynchronizer(
     /// <summary>この回数失敗した保留中の操作は諦める（エラーとして報告する）。</summary>
     public const int MaxOperationAttempts = 5;
 
-    public async Task<AccountSyncResult> SyncAsync(Account account, IProgress<SyncProgress>? progress = null, CancellationToken cancellationToken = default)
+    public Task<AccountSyncResult> SyncAsync(Account account, IProgress<SyncProgress>? progress = null, CancellationToken cancellationToken = default)
+        => SyncAsync(account, progress, folderFilter: null, cancellationToken);
+
+    /// <summary>同期する。<paramref name="folderFilter"/> を指定すると、対象のフォルダだけを同期する（IDLE で受信トレイだけなど）。</summary>
+    public async Task<AccountSyncResult> SyncAsync(
+        Account account,
+        IProgress<SyncProgress>? progress,
+        Func<Folder, bool>? folderFilter,
+        CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(account);
         var errors = new List<string>();
@@ -32,7 +40,9 @@ public sealed class AccountSynchronizer(
 
         await ReplayPendingAsync(session, account.Id, errors, cancellationToken).ConfigureAwait(false);
 
-        var localFolders = await SyncFolderListAsync(session, account.Id, cancellationToken).ConfigureAwait(false);
+        var localFolders = (await SyncFolderListAsync(session, account.Id, cancellationToken).ConfigureAwait(false))
+            .Where(f => folderFilter is null || folderFilter(f))
+            .ToList();
         // フォルダ一覧が更新されたことを知らせる（画面にフォルダを先に表示するため）
         progress?.Report(new SyncProgress(0, string.Empty, 0, 0));
         var synchronizer = new FolderSynchronizer(folders, messages, files, options);

@@ -19,6 +19,8 @@ public partial class MainWindow : Window
     private bool _webViewReady;
     private MessageDetailViewModel? _pendingDetail;
     private bool _changingFolderSelection;
+    private bool _exitRequested;
+    private bool _trayNoticeShown;
 
     public MainWindow(MainViewModel viewModel, AppServices services)
     {
@@ -37,6 +39,23 @@ public partial class MainWindow : Window
                 Dispatcher.BeginInvoke(SyncFolderSelection, System.Windows.Threading.DispatcherPriority.Loaded);
             }
         };
+        Closing += (_, e) =>
+        {
+            if (_exitRequested)
+            {
+                return;
+            }
+
+            // 閉じてもタスクトレイに常駐し、受信と通知を続ける
+            e.Cancel = true;
+            Hide();
+            if (!_trayNoticeShown)
+            {
+                _trayNoticeShown = true;
+                MinimizedToTray?.Invoke(this, EventArgs.Empty);
+            }
+        };
+        TaskbarItemInfo = new System.Windows.Shell.TaskbarItemInfo();
         Loaded += async (_, _) =>
         {
             SyncFolderSelection();
@@ -214,9 +233,73 @@ public partial class MainWindow : Window
         }
     }
 
+    /// <summary>初めてタスクトレイに入ったとき（案内の通知を出すため）。</summary>
+    public event EventHandler? MinimizedToTray;
+
+    public void ShowFromTray()
+    {
+        Show();
+        if (WindowState == WindowState.Minimized)
+        {
+            WindowState = WindowState.Normal;
+        }
+
+        Activate();
+    }
+
+    /// <summary>アプリを終了する（トレイの［終了］、［ファイル］→［終了］）。</summary>
+    public void ExitApplication()
+    {
+        _exitRequested = true;
+        foreach (var window in Application.Current.Windows.OfType<ComposeWindow>().ToList())
+        {
+            window.Close();
+            if (window.IsVisible)
+            {
+                // 下書きの保存確認でキャンセルされた
+                _exitRequested = false;
+                return;
+            }
+        }
+
+        Close();
+        Application.Current.Shutdown();
+    }
+
+    /// <summary>タスクバーのアイコンに未読数のバッジを重ねる。</summary>
+    public void SetUnreadBadge(int count)
+    {
+        if (count <= 0)
+        {
+            TaskbarItemInfo.Overlay = null;
+            return;
+        }
+
+        var text = count > 99 ? "99+" : count.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        var visual = new System.Windows.Media.DrawingVisual();
+        using (var dc = visual.RenderOpen())
+        {
+            dc.DrawEllipse(new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0xD9, 0x30, 0x25)), null, new Point(16, 16), 16, 16);
+            var formatted = new System.Windows.Media.FormattedText(
+                text,
+                System.Globalization.CultureInfo.InvariantCulture,
+                FlowDirection.LeftToRight,
+                new System.Windows.Media.Typeface("Segoe UI Semibold"),
+                text.Length > 2 ? 12 : 17,
+                System.Windows.Media.Brushes.White,
+                1.0);
+            dc.DrawText(formatted, new Point(16 - (formatted.Width / 2), 16 - (formatted.Height / 2)));
+        }
+
+        var bitmap = new System.Windows.Media.Imaging.RenderTargetBitmap(32, 32, 96, 96, System.Windows.Media.PixelFormats.Pbgra32);
+        bitmap.Render(visual);
+        TaskbarItemInfo.Overlay = bitmap;
+    }
+
     public void OpenCompose(Hayabumi.Core.Compose.Draft draft)
     {
-        var window = new ComposeWindow(_services, draft) { Owner = this };
+        // メイン画面をトレイに隠しても作成中の画面が消えないよう、親ウィンドウを持たせない
+        var window = new ComposeWindow(_services, draft);
         window.Queued += (_, item) => _viewModel.OnQueued(item);
         window.Show();
     }
@@ -244,7 +327,7 @@ public partial class MainWindow : Window
         }
     }
 
-    private void OnExitClick(object sender, RoutedEventArgs e) => Close();
+    private void OnExitClick(object sender, RoutedEventArgs e) => ExitApplication();
 
     private void OnUpdateTokenClick(object sender, RoutedEventArgs e)
     {

@@ -28,6 +28,7 @@ public sealed class FolderSynchronizer(FolderRepository folders, MessageReposito
 
         // 1. 新着
         var added = 0;
+        var newUnread = new List<NewMessage>();
         if (remote.Count > 0)
         {
             var newUids = (await remote.GetUidsAsync(maxUid + 1, cancellationToken).ConfigureAwait(false))
@@ -40,6 +41,10 @@ public sealed class FolderSynchronizer(FolderRepository folders, MessageReposito
                 cancellationToken.ThrowIfCancellationRequested();
                 var headers = await remote.FetchHeadersAsync(batch, added < options.PreviewLimit, cancellationToken).ConfigureAwait(false);
                 added += messages.InsertMany(local.AccountId, local.Id, headers);
+                if (newUnread.Count < 5)
+                {
+                    newUnread.AddRange(headers.Where(h => !h.Flags.HasFlag(MessageFlags.Seen)).OrderByDescending(h => h.Uid).Take(5 - newUnread.Count));
+                }
                 progress?.Report(new SyncProgress(local.Id, local.DisplayName, added, newUids.Count));
             }
         }
@@ -76,6 +81,9 @@ public sealed class FolderSynchronizer(FolderRepository folders, MessageReposito
             Removed = removed,
             FlagsUpdated = flagsUpdated,
             Reset = reset,
+            IsInitial = maxUid == 0,
+            Role = local.Role,
+            NewUnread = newUnread,
         };
     }
 

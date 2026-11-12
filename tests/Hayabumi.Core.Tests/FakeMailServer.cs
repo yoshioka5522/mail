@@ -41,6 +41,9 @@ internal sealed class FakeMailServer : IMailStoreSessionFactory
         public Task<IRemoteFolder> OpenFolderAsync(string fullName, bool writable, CancellationToken cancellationToken)
             => Task.FromResult<IRemoteFolder>(new Opened(server, server.Folders[fullName]));
 
+        public Task<bool?> WaitForChangesAsync(string folderFullName, TimeSpan timeout, CancellationToken cancellationToken)
+            => Task.FromResult<bool?>(null);
+
         public async Task AppendAsync(string folderFullName, Stream message, MessageFlags flags, CancellationToken cancellationToken)
         {
             using var buffer = new MemoryStream();

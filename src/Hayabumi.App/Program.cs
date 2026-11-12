@@ -5,6 +5,9 @@ namespace Hayabumi.App;
 
 public static class Program
 {
+    /// <summary>2 つ目の起動から、既に動いている Hayabumi に画面の表示を頼むための合図。</summary>
+    public const string ShowSignalName = @"Local\Hayabumi.Show";
+
     [STAThread]
     public static void Main(string[] args)
     {
@@ -15,7 +18,19 @@ public static class Program
         using var mutex = new Mutex(initiallyOwned: true, @"Local\Hayabumi.SingleInstance", out var createdNew);
         if (!createdNew)
         {
-            MessageBox.Show("Hayabumi は既に起動しています。", "Hayabumi", MessageBoxButton.OK, MessageBoxImage.Information);
+            // トレイに常駐している場合もあるため、既存の画面を前面に出してもらう
+            if (EventWaitHandle.TryOpenExisting(ShowSignalName, out var signal))
+            {
+                using (signal)
+                {
+                    signal.Set();
+                }
+            }
+            else
+            {
+                MessageBox.Show("Hayabumi は既に起動しています。", "Hayabumi", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+
             return;
         }
 

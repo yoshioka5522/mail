@@ -1,3 +1,5 @@
+using Hayabumi.Core.Storage;
+
 namespace Hayabumi.Core.Sync;
 
 public sealed record SyncOptions
@@ -30,6 +32,14 @@ public sealed record FolderSyncResult
 
     /// <summary>UIDVALIDITY が変わり、フォルダを取り直した。</summary>
     public bool Reset { get; init; }
+
+    /// <summary>初めての同期（または取り直し）。新着通知の対象にしない。</summary>
+    public bool IsInitial { get; init; }
+
+    public FolderRole Role { get; init; }
+
+    /// <summary>今回追加したメールのうち、未読のもの（新着通知用。新しい順に最大 5 件）。</summary>
+    public IReadOnlyList<NewMessage> NewUnread { get; init; } = [];
 }
 
 public sealed record SyncProgress(long FolderId, string FolderName, int Done, int Total);

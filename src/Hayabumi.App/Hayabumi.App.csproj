@@ -4,6 +4,9 @@
     <OutputType>WinExe</OutputType>
     <TargetFramework>net10.0-windows</TargetFramework>
     <UseWPF>true</UseWPF>
+    <!-- タスクトレイのアイコン（NotifyIcon）にだけ使う -->
+    <UseWindowsForms>true</UseWindowsForms>
+    <ApplicationIcon>Assets\Hayabumi.ico</ApplicationIcon>
     <RootNamespace>Hayabumi.App</RootNamespace>
     <AssemblyName>Hayabumi</AssemblyName>
     <StartupObject>Hayabumi.App.Program</StartupObject>
@@ -20,6 +23,13 @@
     <!-- Main メソッドを Program.cs に置くため（Velopack の初期化を最初に行う） -->
     <ApplicationDefinition Remove="App.xaml" />
     <Page Include="App.xaml" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- WPF と Windows Forms の同名の型がぶつからないよう、Windows Forms の暗黙の using は使わない -->
+    <Using Remove="System.Windows.Forms" />
+    <Using Remove="System.Drawing" />
+    <Resource Include="Assets\Hayabumi.ico" />
   </ItemGroup>
 
   <ItemGroup>

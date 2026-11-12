@@ -148,6 +148,46 @@ public sealed class ImapIntegrationTests : IDisposable
         await admin.DisconnectAsync(true, Ct);
     }
 
+    [Fact]
+    public async Task Idle_returns_when_new_mail_arrives()
+    {
+        var settings = Settings();
+        Assert.SkipWhen(settings is null, "HAYABUMI_IMAP_TEST が設定されていません");
+        var (host, port, user, password) = settings!.Value;
+
+        var credentials = new InMemoryCredentialStore();
+        var account = _db.Accounts.Add(new Account
+        {
+            DisplayName = "IDLE",
+            EmailAddress = user + "@localhost",
+            IncomingProtocol = IncomingProtocol.Imap,
+            Incoming = new ServerEndpoint(host, port, ConnectionSecurity.None),
+            Outgoing = new ServerEndpoint(host, 25, ConnectionSecurity.None),
+            UserName = user,
+            AuthMethod = AuthMethod.Password,
+        });
+        credentials.Write(account.CredentialKey, user, password);
+        var factory = new ImapSessionFactory(new StoredPasswordSecretProvider(credentials));
+
+        await using var session = await factory.ConnectAsync(account, Ct);
+        Assert.False(await session.WaitForChangesAsync("INBOX", TimeSpan.FromMilliseconds(500), Ct));
+
+        var waiting = session.WaitForChangesAsync("INBOX", TimeSpan.FromSeconds(30), Ct);
+        await Task.Delay(500, Ct);
+        using (var admin = new ImapClient())
+        {
+            await admin.ConnectAsync(host, port, SecureSocketOptions.None, Ct);
+            await admin.AuthenticateAsync(user, password, Ct);
+            await admin.Inbox.AppendAsync(new AppendRequest(new MimeMessage(
+                [new MailboxAddress("", "a@example.jp")], [new MailboxAddress("", user)], "IDLE テスト", new TextPart("plain") { Text = "x" })), Ct);
+            await admin.DisconnectAsync(true, Ct);
+        }
+
+        var started = DateTime.UtcNow;
+        Assert.True(await waiting);
+        Assert.True(DateTime.UtcNow - started < TimeSpan.FromSeconds(10));
+    }
+
     private static async Task<List<(string Subject, IMessageSummary Summary)>> FetchWithSubjectsAsync(IMailFolder folder)
     {
         var uids = await folder.SearchAsync(MailKit.Search.SearchQuery.All, Ct);

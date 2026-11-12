@@ -96,6 +96,9 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>アカウント追加の画面を開くよう画面側に依頼する。</summary>
     public event EventHandler? AddAccountRequested;
 
+    /// <summary>アカウントの一覧が変わった（IDLE の監視対象を更新するため）。</summary>
+    public event EventHandler? AccountsChanged;
+
     /// <summary>メール作成画面を開くよう画面側に依頼する。</summary>
     public event EventHandler<Draft>? ComposeRequested;
 
@@ -134,6 +137,8 @@ public sealed partial class MainViewModel : ObservableObject
         }
 
         OnPropertyChanged(nameof(HasAccounts));
+        UpdateUnreadCount();
+        AccountsChanged?.Invoke(this, EventArgs.Empty);
         SelectedFolder = Accounts.SelectMany(a => a.Folders).FirstOrDefault(f => f.Id == selectedId)
             ?? Accounts.SelectMany(a => a.Folders).FirstOrDefault(f => f.Folder.Role == FolderRole.Inbox)
             ?? Accounts.SelectMany(a => a.Folders).FirstOrDefault();
@@ -179,21 +184,49 @@ public sealed partial class MainViewModel : ObservableObject
     }
 
     [RelayCommand(CanExecute = nameof(CanSync))]
-    private async Task SyncAsync()
+    private Task SyncAsync() => SyncAccountsAsync(Accounts.ToList(), inboxOnly: false);
+
+    /// <summary>IDLE で新着を検知したときなどに、1 つのアカウントの受信トレイだけを同期する。</summary>
+    public async Task SyncInboxAsync(long accountId)
     {
-        if (!HasAccounts || !await _services.SyncLock.WaitAsync(0))
+        var node = Accounts.FirstOrDefault(a => a.Account.Id == accountId);
+        if (node is null)
+        {
+            return;
+        }
+
+        if (IsSyncing)
+        {
+            // 同期中なら、終わったあとにもう一度受信トレイを確認する
+            _inboxResyncRequested.Add(accountId);
+            return;
+        }
+
+        await SyncAccountsAsync([node], inboxOnly: true);
+    }
+
+    private readonly HashSet<long> _inboxResyncRequested = [];
+
+    private async Task SyncAccountsAsync(List<AccountNodeViewModel> nodes, bool inboxOnly)
+    {
+        if (nodes.Count == 0 || !await _services.SyncLock.WaitAsync(0))
         {
             return;
         }
 
         IsSyncing = true;
         var errors = new List<string>();
+        var newMail = new List<(AccountNodeViewModel Node, NewMessage Message)>();
         var added = 0;
         try
         {
-            foreach (var node in Accounts.ToList())
+            foreach (var node in nodes)
             {
-                StatusText = $"{node.EmailAddress} を同期しています…";
+                if (!inboxOnly)
+                {
+                    StatusText = $"{node.EmailAddress} を同期しています…";
+                }
+
                 var lastRefresh = DateTime.MinValue;
                 var progress = new Progress<SyncProgress>(p =>
                 {
@@ -215,9 +248,14 @@ public sealed partial class MainViewModel : ObservableObject
                 });
                 try
                 {
-                    var result = await Task.Run(() => _services.CreateAccountSynchronizer().SyncAsync(node.Account, progress));
+                    Func<Folder, bool>? filter = inboxOnly ? f => f.Role == FolderRole.Inbox : null;
+                    var result = await Task.Run(() => _services.CreateAccountSynchronizer().SyncAsync(node.Account, progress, filter, CancellationToken.None));
                     added += result.Added;
                     errors.AddRange(result.Errors.Select(e => $"{node.EmailAddress}: {e}"));
+                    newMail.AddRange(result.Folders
+                        .Where(f => f.Role == FolderRole.Inbox && !f.IsInitial)
+                        .SelectMany(f => f.NewUnread)
+                        .Select(m => (node, m)));
                 }
                 catch (Exception ex)
                 {
@@ -239,11 +277,49 @@ public sealed partial class MainViewModel : ObservableObject
             RefreshListKeepingSelection();
         }
 
+        UpdateUnreadCount();
+        if (newMail.Count > 0)
+        {
+            var latest = newMail.OrderByDescending(m => m.Message.Date).First().Message;
+            var sender = string.IsNullOrWhiteSpace(latest.FromName) ? latest.FromAddress : latest.FromName;
+            var title = newMail.Count == 1 ? $"新着メール: {sender}" : $"新着メール {newMail.Count} 通";
+            NewMailArrived?.Invoke(this, (title, newMail.Count == 1 ? latest.Subject : $"{sender}: {latest.Subject}"));
+        }
+
         var time = DateTime.Now.ToString("HH:mm", System.Globalization.CultureInfo.InvariantCulture);
-        StatusText = errors.Count > 0
-            ? $"{time} 同期でエラーが発生しました: {errors[0]}"
-            : added > 0 ? $"{time} {added:N0} 通の新着メールを受信しました" : $"{time} 同期しました";
+        if (errors.Count > 0)
+        {
+            StatusText = $"{time} 同期でエラーが発生しました: {errors[0]}";
+        }
+        else if (added > 0)
+        {
+            StatusText = $"{time} {added:N0} 通の新着メールを受信しました";
+        }
+        else if (!inboxOnly)
+        {
+            StatusText = $"{time} 同期しました";
+        }
+
+        if (_inboxResyncRequested.Count > 0)
+        {
+            var pending = _inboxResyncRequested.ToList();
+            _inboxResyncRequested.Clear();
+            foreach (var id in pending)
+            {
+                await SyncInboxAsync(id);
+            }
+        }
     }
+
+    /// <summary>新着メールがあった（タイトル, 本文）。通知の表示に使う。</summary>
+    public event EventHandler<(string Title, string Text)>? NewMailArrived;
+
+    /// <summary>全アカウントの受信トレイの未読数（タスクバーとトレイに表示する）。</summary>
+    [ObservableProperty]
+    private int _unreadInboxCount;
+
+    private void UpdateUnreadCount()
+        => UnreadInboxCount = Accounts.SelectMany(a => a.Folders).Where(f => f.Folder.Role == FolderRole.Inbox).Sum(f => f.UnreadCount);
 
     private bool CanSync() => !IsSyncing;
 
@@ -608,6 +684,8 @@ public sealed partial class MainViewModel : ObservableObject
         {
             RefreshFolders(node);
         }
+
+        UpdateUnreadCount();
     }
 
     private async Task LoadDetailAsync(MessageItemViewModel? item, bool allowRemoteContent = false)

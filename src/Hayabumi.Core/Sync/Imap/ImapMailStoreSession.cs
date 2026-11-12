@@ -109,6 +109,46 @@ public sealed class ImapMailStoreSession(ImapClient client) : IMailStoreSession
         return new ImapRemoteFolder(client, folder);
     }
 
+    public async Task<bool?> WaitForChangesAsync(string folderFullName, TimeSpan timeout, CancellationToken cancellationToken)
+    {
+        if (!client.Capabilities.HasFlag(ImapCapabilities.Idle))
+        {
+            return null;
+        }
+
+        var folder = string.Equals(folderFullName, client.Inbox.FullName, StringComparison.OrdinalIgnoreCase)
+            ? client.Inbox
+            : await client.GetFolderAsync(folderFullName, cancellationToken).ConfigureAwait(false);
+        if (!folder.IsOpen)
+        {
+            await folder.OpenAsync(FolderAccess.ReadOnly, cancellationToken).ConfigureAwait(false);
+        }
+
+        var changed = false;
+        using var done = new CancellationTokenSource(timeout);
+        void OnChanged(object? sender, EventArgs e)
+        {
+            changed = true;
+            done.Cancel();
+        }
+
+        folder.CountChanged += OnChanged;
+        folder.MessageExpunged += OnChanged;
+        folder.MessageFlagsChanged += OnChanged;
+        try
+        {
+            await client.IdleAsync(done.Token, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            folder.CountChanged -= OnChanged;
+            folder.MessageExpunged -= OnChanged;
+            folder.MessageFlagsChanged -= OnChanged;
+        }
+
+        return changed;
+    }
+
     public async Task AppendAsync(string folderFullName, Stream message, MessageFlags flags, CancellationToken cancellationToken)
     {
         var folder = await client.GetFolderAsync(folderFullName, cancellationToken).ConfigureAwait(false);

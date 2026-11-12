@@ -9,6 +9,8 @@ namespace Hayabumi.App;
 public partial class App : Application
 {
     private AppServices? _services;
+    private TrayIcon? _tray;
+    private IdleWatcher? _idle;
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -36,12 +38,62 @@ public partial class App : Application
         var viewModel = new MainViewModel(_services);
         var window = new MainWindow(viewModel, _services);
         MainWindow = window;
-        window.Show();
+
+        _tray = new TrayIcon();
+        _tray.OpenRequested += (_, _) => window.ShowFromTray();
+        _tray.SyncRequested += (_, _) => viewModel.SyncCommand.Execute(null);
+        _tray.ComposeRequested += (_, _) =>
+        {
+            window.ShowFromTray();
+            viewModel.NewMessageCommand.Execute(null);
+        };
+        _tray.ExitRequested += (_, _) => window.ExitApplication();
+        viewModel.NewMailArrived += (_, mail) =>
+        {
+            if (!window.IsActive)
+            {
+                _tray.Notify(mail.Title, mail.Text);
+            }
+        };
+        viewModel.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(MainViewModel.UnreadInboxCount))
+            {
+                _tray.SetUnreadCount(viewModel.UnreadInboxCount);
+                window.SetUnreadBadge(viewModel.UnreadInboxCount);
+            }
+        };
+        window.MinimizedToTray += (_, _) => _tray.Notify("Hayabumi", "タスクトレイで動作しています。終了するには、トレイのアイコンを右クリックして［終了］を選んでください。");
+
+        _idle = new IdleWatcher(_services.Sessions);
+        _idle.Changed += (_, accountId) => Dispatcher.BeginInvoke(async () => await viewModel.SyncInboxAsync(accountId));
+        viewModel.AccountsChanged += (_, _) => _idle.Watch(_services.Accounts.GetAll());
+
+        // 2 つ目の起動から合図が来たら、画面を前面に出す
+        var showSignal = new EventWaitHandle(false, EventResetMode.AutoReset, Program.ShowSignalName);
+        var listener = new Thread(() =>
+        {
+            while (showSignal.WaitOne())
+            {
+                Dispatcher.BeginInvoke(window.ShowFromTray);
+            }
+        })
+        { IsBackground = true, Name = "Hayabumi.ShowSignal" };
+        listener.Start();
+
+        var startMinimized = e.Args.Contains("--minimized");
+        if (!startMinimized)
+        {
+            window.Show();
+        }
+
         viewModel.Start();
     }
 
     protected override void OnExit(ExitEventArgs e)
     {
+        _idle?.Dispose();
+        _tray?.Dispose();
         _services?.Dispose();
         base.OnExit(e);
     }

@@ -20,6 +20,12 @@ public interface IMailStoreSession : IAsyncDisposable
 
     Task<IRemoteFolder> OpenFolderAsync(string fullName, bool writable, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// フォルダに変化（新着・削除）があるまで待つ（IMAP IDLE）。
+    /// 変化があれば true、<paramref name="timeout"/> が過ぎたら false を返す。IDLE に対応していないサーバーでは null。
+    /// </summary>
+    Task<bool?> WaitForChangesAsync(string folderFullName, TimeSpan timeout, CancellationToken cancellationToken);
+
     /// <summary>メッセージをフォルダに保存する（送信済み・下書きへの保存）。</summary>
     Task AppendAsync(string folderFullName, Stream message, MessageFlags flags, CancellationToken cancellationToken);
 }

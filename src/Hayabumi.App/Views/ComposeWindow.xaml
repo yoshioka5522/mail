@@ -4,7 +4,7 @@
         xmlns:local="clr-namespace:Hayabumi.App.Views"
         FontFamily="{StaticResource UiFont}" FontSize="13"
         Title="新規メッセージ" Width="820" Height="680" MinWidth="560" MinHeight="420"
-        WindowStartupLocation="CenterOwner" AllowDrop="True" Drop="OnDrop" DragOver="OnDragOver">
+        WindowStartupLocation="CenterScreen" Icon="/Assets/Hayabumi.ico" AllowDrop="True" Drop="OnDrop" DragOver="OnDragOver">
     <Window.InputBindings>
         <KeyBinding Key="Enter" Modifiers="Ctrl" Command="{x:Static local:ComposeWindow.SendCommand}" />
         <KeyBinding Key="S" Modifiers="Ctrl" Command="{x:Static local:ComposeWindow.SaveCommand}" />
