@@ -26,6 +26,14 @@ public interface IMailStoreSession : IAsyncDisposable
     /// </summary>
     Task<bool?> WaitForChangesAsync(string folderFullName, TimeSpan timeout, CancellationToken cancellationToken);
 
+    /// <summary>フォルダを作る。作ったフォルダのフルネームを返す。</summary>
+    Task<RemoteFolderInfo> CreateFolderAsync(string? parentFullName, string name, CancellationToken cancellationToken);
+
+    /// <summary>フォルダの名前を変える。新しいフルネームを返す。</summary>
+    Task<string> RenameFolderAsync(string fullName, string newName, CancellationToken cancellationToken);
+
+    Task DeleteFolderAsync(string fullName, CancellationToken cancellationToken);
+
     /// <summary>メッセージをフォルダに保存する（送信済み・下書きへの保存）。</summary>
     Task AppendAsync(string folderFullName, Stream message, MessageFlags flags, CancellationToken cancellationToken);
 }

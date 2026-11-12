@@ -41,6 +41,36 @@ internal sealed class FakeMailServer : IMailStoreSessionFactory
         public Task<IRemoteFolder> OpenFolderAsync(string fullName, bool writable, CancellationToken cancellationToken)
             => Task.FromResult<IRemoteFolder>(new Opened(server, server.Folders[fullName]));
 
+        public Task<RemoteFolderInfo> CreateFolderAsync(string? parentFullName, string name, CancellationToken cancellationToken)
+        {
+            var fullName = parentFullName is null ? name : $"{parentFullName}/{name}";
+            server.AddFolder(fullName);
+            return Task.FromResult(new RemoteFolderInfo(fullName, name, '/', FolderRole.None, true));
+        }
+
+        public Task<string> RenameFolderAsync(string fullName, string newName, CancellationToken cancellationToken)
+        {
+            var folder = server.Folders[fullName];
+            server.Folders.Remove(fullName);
+            var slash = fullName.LastIndexOf('/');
+            var newFullName = slash >= 0 ? fullName[..(slash + 1)] + newName : newName;
+            var renamed = server.AddFolder(newFullName, folder.Role, folder.SupportsModSeq);
+            renamed.UidValidity = folder.UidValidity;
+            foreach (var (uid, message) in folder.Messages)
+            {
+                renamed.Messages[uid] = message;
+            }
+
+            renamed.NextUid = folder.NextUid;
+            return Task.FromResult(newFullName);
+        }
+
+        public Task DeleteFolderAsync(string fullName, CancellationToken cancellationToken)
+        {
+            server.Folders.Remove(fullName);
+            return Task.CompletedTask;
+        }
+
         public Task<bool?> WaitForChangesAsync(string folderFullName, TimeSpan timeout, CancellationToken cancellationToken)
             => Task.FromResult<bool?>(null);
 

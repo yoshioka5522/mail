@@ -150,6 +150,46 @@ public sealed class ImapIntegrationTests : IDisposable
     }
 
     [Fact]
+    public async Task Folder_create_rename_delete_on_real_server()
+    {
+        var settings = Settings();
+        Assert.SkipWhen(settings is null, "HAYABUMI_IMAP_TEST が設定されていません");
+        var (host, port, user, password) = settings!.Value;
+        var credentials = new InMemoryCredentialStore();
+        var account = _db.Accounts.Add(new Account
+        {
+            DisplayName = "folders",
+            EmailAddress = user + "@localhost",
+            IncomingProtocol = IncomingProtocol.Imap,
+            Incoming = new ServerEndpoint(host, port, ConnectionSecurity.None),
+            Outgoing = new ServerEndpoint(host, 25, ConnectionSecurity.None),
+            UserName = user,
+            AuthMethod = AuthMethod.Password,
+        });
+        credentials.Write(account.CredentialKey, user, password);
+        var factory = new ImapSessionFactory(new StoredPasswordSecretProvider(credentials));
+        var service = new FolderService(factory, _db.Folders, _db.Messages, _db.Files);
+
+        var name = "テスト用フォルダ" + Guid.NewGuid().ToString("N")[..6];
+        var created = await service.CreateAsync(account, null, name, Ct);
+        Assert.Equal(name, created.DisplayName);
+
+        var renamed = await service.RenameAsync(account, created, name + "改", Ct);
+        await using (var session = await factory.ConnectAsync(account, Ct))
+        {
+            var names = (await session.GetFoldersAsync(Ct)).Select(f => f.FullName).ToList();
+            Assert.Contains(renamed.FullName, names);
+            Assert.DoesNotContain(created.FullName, names);
+        }
+
+        await service.DeleteAsync(account, renamed, Ct);
+        await using (var session = await factory.ConnectAsync(account, Ct))
+        {
+            Assert.DoesNotContain((await session.GetFoldersAsync(Ct)).Select(f => f.FullName), n => n.StartsWith("テスト用フォルダ", StringComparison.Ordinal));
+        }
+    }
+
+    [Fact]
     public async Task Idle_returns_when_new_mail_arrives()
     {
         var settings = Settings();

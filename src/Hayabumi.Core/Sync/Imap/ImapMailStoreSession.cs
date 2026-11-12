@@ -149,6 +149,41 @@ public sealed class ImapMailStoreSession(ImapClient client) : IMailStoreSession
         return changed;
     }
 
+    public async Task<RemoteFolderInfo> CreateFolderAsync(string? parentFullName, string name, CancellationToken cancellationToken)
+    {
+        var parent = string.IsNullOrEmpty(parentFullName)
+            ? client.GetFolder(client.PersonalNamespaces.Count > 0 ? client.PersonalNamespaces[0] : new FolderNamespace('/', string.Empty))
+            : await client.GetFolderAsync(parentFullName, cancellationToken).ConfigureAwait(false);
+        var created = await parent.CreateAsync(name, isMessageFolder: true, cancellationToken).ConfigureAwait(false)
+            ?? throw new InvalidOperationException("フォルダを作れませんでした。");
+        await created.SubscribeAsync(cancellationToken).ConfigureAwait(false);
+        var delimiter = created.DirectorySeparator == '\0' ? (char?)null : created.DirectorySeparator;
+        return new RemoteFolderInfo(created.FullName, created.Name, delimiter, FolderRole.None, CanSelect: true);
+    }
+
+    public async Task<string> RenameFolderAsync(string fullName, string newName, CancellationToken cancellationToken)
+    {
+        var folder = await client.GetFolderAsync(fullName, cancellationToken).ConfigureAwait(false);
+        var parent = folder.ParentFolder ?? client.GetFolder(client.PersonalNamespaces[0]);
+        await folder.RenameAsync(parent, newName, cancellationToken).ConfigureAwait(false);
+        return folder.FullName;
+    }
+
+    public async Task DeleteFolderAsync(string fullName, CancellationToken cancellationToken)
+    {
+        var folder = await client.GetFolderAsync(fullName, cancellationToken).ConfigureAwait(false);
+        try
+        {
+            await folder.UnsubscribeAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (ImapCommandException)
+        {
+            // 購読していないフォルダ
+        }
+
+        await folder.DeleteAsync(cancellationToken).ConfigureAwait(false);
+    }
+
     public async Task AppendAsync(string folderFullName, Stream message, MessageFlags flags, CancellationToken cancellationToken)
     {
         var folder = await client.GetFolderAsync(folderFullName, cancellationToken).ConfigureAwait(false);

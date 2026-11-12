@@ -70,6 +70,12 @@ public sealed class FolderRepository(MailDatabase database)
             ("$id", folderId));
     }
 
+    public void Rename(long folderId, string fullName, string displayName)
+    {
+        using var connection = database.Open();
+        connection.Execute("UPDATE folders SET full_name = $f, display_name = $d WHERE id = $id;", ("$f", fullName), ("$d", displayName), ("$id", folderId));
+    }
+
     public void Delete(long folderId)
     {
         using var connection = database.Open();
