@@ -1,0 +1,27 @@
+<Window x:Class="Hayabumi.App.Views.SendConfirmWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        FontFamily="{StaticResource UiFont}" FontSize="13"
+        Title="送信前の確認" Width="560" SizeToContent="Height" MaxHeight="720" ResizeMode="NoResize"
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="False">
+    <DockPanel Margin="20">
+        <TextBlock DockPanel.Dock="Top" Text="宛先と添付ファイルを確認し、すべてにチェックを入れてください。" TextWrapping="Wrap" Margin="0,0,0,10" />
+        <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,14,0,0">
+            <Button x:Name="CheckAllButton" Content="すべてチェック" Click="OnCheckAllClick" ToolTip="社外の宛先がある場合は、一つずつ確認してください" />
+            <Button x:Name="SendButton" Content="送信する" IsDefault="True" IsEnabled="False" Click="OnSendClick" />
+            <Button Content="戻る" IsCancel="True" Margin="0" />
+        </StackPanel>
+        <ItemsControl x:Name="WarningList" DockPanel.Dock="Bottom" Margin="0,10,0,0">
+            <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                    <Border Background="#FFF8E1" BorderBrush="#F0D58C" BorderThickness="1" Padding="8,4" Margin="0,0,0,4">
+                        <TextBlock Text="{Binding Message}" TextWrapping="Wrap" />
+                    </Border>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+        <ScrollViewer VerticalScrollBarVisibility="Auto" MaxHeight="420">
+            <StackPanel x:Name="CheckList" />
+        </ScrollViewer>
+    </DockPanel>
+</Window>

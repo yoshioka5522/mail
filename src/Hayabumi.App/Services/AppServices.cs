@@ -1,5 +1,7 @@
 using System.IO;
 using Hayabumi.Core.Accounts;
+using Hayabumi.Core.Compose;
+using Hayabumi.Core.Contacts;
 using Hayabumi.Core.Security;
 using Hayabumi.Core.Storage;
 using Hayabumi.Core.Sync;
@@ -21,9 +23,14 @@ public sealed class AppServices : IDisposable
         Pending = new PendingOperationRepository(Database);
         Files = new MessageFileStore(location.Root);
         Credentials = new WindowsCredentialStore();
-        Sessions = new ImapSessionFactory(new StoredPasswordSecretProvider(Credentials));
+        var secrets = new StoredPasswordSecretProvider(Credentials);
+        Sessions = new ImapSessionFactory(secrets);
         Actions = new MailActions(Folders, Messages, Pending, Files);
         Updates = new UpdateService(Credentials);
+        Drafts = new DraftRepository(Database, location.Root);
+        Outbox = new OutboxRepository(Database);
+        Contacts = new ContactRepository(Database);
+        Send = new SendService(Accounts, Messages, Drafts, Outbox, Files, new SmtpMailSender(secrets), Sessions, Actions, Contacts);
     }
 
     public AppDataLocation Location { get; }
@@ -37,6 +44,10 @@ public sealed class AppServices : IDisposable
     public IMailStoreSessionFactory Sessions { get; }
     public MailActions Actions { get; }
     public UpdateService Updates { get; }
+    public DraftRepository Drafts { get; }
+    public OutboxRepository Outbox { get; }
+    public ContactRepository Contacts { get; }
+    public SendService Send { get; }
     public SyncOptions SyncOptions { get; } = new();
 
     /// <summary>同期は 1 つずつ行う（同じアカウントへの同時接続を避ける）。</summary>
@@ -72,6 +83,7 @@ public sealed class AppServices : IDisposable
     public void Dispose()
     {
         SyncLock.Dispose();
+        Send.Dispose();
         Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
     }
 

@@ -6,6 +6,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Hayabumi.App.Services;
 using Hayabumi.Core.Accounts;
+using Hayabumi.Core.Compose;
 using Hayabumi.Core.Mime;
 using Hayabumi.Core.Storage;
 using Hayabumi.Core.Sync;
@@ -51,11 +52,30 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private string _listHeader = string.Empty;
 
+    [ObservableProperty]
+    private bool _isUndoVisible;
+
+    [ObservableProperty]
+    private string _undoText = string.Empty;
+
+    private long? _undoOutboxId;
+    private readonly DispatcherTimer _outboxTimer;
+    private readonly DispatcherTimer _undoTimer;
+
     public MainViewModel(AppServices services)
     {
         _services = services;
         _autoSyncTimer = new DispatcherTimer { Interval = s_autoSyncInterval };
         _autoSyncTimer.Tick += async (_, _) => await SyncAsync();
+        _outboxTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+        _outboxTimer.Tick += async (_, _) => await ProcessOutboxAsync();
+        _undoTimer = new DispatcherTimer();
+        _undoTimer.Tick += (_, _) =>
+        {
+            _undoTimer.Stop();
+            IsUndoVisible = false;
+            _undoOutboxId = null;
+        };
         _searchDebounce = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(300) };
         _searchDebounce.Tick += (_, _) =>
         {
@@ -76,6 +96,9 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>アカウント追加の画面を開くよう画面側に依頼する。</summary>
     public event EventHandler? AddAccountRequested;
 
+    /// <summary>メール作成画面を開くよう画面側に依頼する。</summary>
+    public event EventHandler<Draft>? ComposeRequested;
+
     public void Start()
     {
         CleanViewerDirectory();
@@ -91,6 +114,7 @@ public sealed partial class MainViewModel : ObservableObject
         }
 
         _autoSyncTimer.Start();
+        _outboxTimer.Start();
         _ = CheckUpdatesQuietlyAsync();
     }
 
@@ -225,6 +249,169 @@ public sealed partial class MainViewModel : ObservableObject
 
     [RelayCommand]
     private void AddAccount() => AddAccountRequested?.Invoke(this, EventArgs.Empty);
+
+    [RelayCommand]
+    private void NewMessage()
+    {
+        var account = CurrentAccount();
+        if (account is null)
+        {
+            AddAccountRequested?.Invoke(this, EventArgs.Empty);
+            return;
+        }
+
+        ComposeRequested?.Invoke(this, DraftFactory.CreateNew(account));
+    }
+
+    [RelayCommand]
+    private void Reply() => CreateResponse(ComposeMode.Reply);
+
+    [RelayCommand]
+    private void ReplyAll() => CreateResponse(ComposeMode.ReplyAll);
+
+    [RelayCommand]
+    private void Forward() => CreateResponse(ComposeMode.Forward);
+
+    [RelayCommand]
+    private void CancelSend()
+    {
+        if (_undoOutboxId is not { } id)
+        {
+            return;
+        }
+
+        _undoTimer.Stop();
+        IsUndoVisible = false;
+        _undoOutboxId = null;
+        var draft = _services.Send.Cancel(id);
+        if (draft is null)
+        {
+            StatusText = "既に送信されたため、取り消せませんでした";
+            return;
+        }
+
+        StatusText = "送信を取り消しました";
+        ComposeRequested?.Invoke(this, draft);
+    }
+
+    /// <summary>作成画面で送信したとき（送信待ちに入ったとき）に呼ばれる。</summary>
+    public void OnQueued(OutboxItem item)
+    {
+        ArgumentNullException.ThrowIfNull(item);
+        if (_services.Send.UndoDelay <= TimeSpan.Zero)
+        {
+            StatusText = "送信しています…";
+            return;
+        }
+
+        _undoOutboxId = item.Id;
+        UndoText = $"送信します（{_services.Send.UndoDelay.TotalSeconds:0} 秒以内なら取り消せます）";
+        IsUndoVisible = true;
+        _undoTimer.Interval = _services.Send.UndoDelay;
+        _undoTimer.Stop();
+        _undoTimer.Start();
+    }
+
+    private Account? CurrentAccount()
+    {
+        var accountId = SelectedFolder?.Folder.AccountId;
+        return Accounts.FirstOrDefault(a => a.Account.Id == accountId)?.Account ?? Accounts.FirstOrDefault()?.Account;
+    }
+
+    private void CreateResponse(ComposeMode mode)
+    {
+        if (Detail is null || SelectedMessage is not { Id: > 0 } item)
+        {
+            return;
+        }
+
+        var account = Accounts.FirstOrDefault(a => a.Account.Id == item.Item.AccountId)?.Account;
+        if (account is null)
+        {
+            return;
+        }
+
+        try
+        {
+            using var stream = _services.Files.OpenRead(Detail.FilePath);
+            var original = MessageParser.Load(stream);
+            Draft draft;
+            if (mode == ComposeMode.Forward)
+            {
+                draft = _services.Drafts.Save(DraftFactory.CreateForward(account, original, item.Id, []));
+                foreach (var (entity, info) in MessageParser.FindAttachments(original).Where(a => !a.Info.IsInline))
+                {
+                    draft = _services.Drafts.AddAttachment(draft, info.FileName, output =>
+                    {
+                        switch (entity)
+                        {
+                            case MimeKit.MimePart part when part.Content is not null:
+                                part.Content.DecodeTo(output);
+                                break;
+                            case MimeKit.MessagePart rfc822 when rfc822.Message is not null:
+                                rfc822.Message.WriteTo(output);
+                                break;
+                        }
+                    });
+                }
+            }
+            else
+            {
+                draft = DraftFactory.CreateReply(account, original, item.Id, mode == ComposeMode.ReplyAll);
+            }
+
+            ComposeRequested?.Invoke(this, draft);
+        }
+        catch (Exception ex)
+        {
+            Log.Error("返信・転送の作成に失敗しました", ex);
+            StatusText = $"返信・転送を作成できませんでした: {ex.Message}";
+        }
+    }
+
+    private async Task ProcessOutboxAsync()
+    {
+        var next = _services.Outbox.GetNextSendAt();
+        if (next is null || next > DateTimeOffset.UtcNow)
+        {
+            return;
+        }
+
+        _outboxTimer.Stop();
+        try
+        {
+            var results = await Task.Run(() => _services.Send.ProcessDueAsync());
+            foreach (var result in results)
+            {
+                if (_undoOutboxId == result.OutboxId)
+                {
+                    IsUndoVisible = false;
+                    _undoOutboxId = null;
+                }
+
+                if (result.Sent)
+                {
+                    StatusText = result.Error ?? "送信しました";
+                }
+                else
+                {
+                    var failed = _services.Outbox.Get(result.OutboxId)?.Failed == true;
+                    StatusText = failed
+                        ? $"送信できませんでした（［メッセージ］→［送信待ちのメール］から再送できます）: {result.Error}"
+                        : $"送信できませんでした。しばらくしてから自動で再送します: {result.Error}";
+                    Log.Error($"送信に失敗しました: {result.Error}", null);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Error("送信処理でエラーが発生しました", ex);
+        }
+        finally
+        {
+            _outboxTimer.Start();
+        }
+    }
 
     [RelayCommand]
     private void ToggleRead()
@@ -470,6 +657,10 @@ public sealed partial class MainViewModel : ObservableObject
 
             Detail = detail;
             DetailChanged?.Invoke(this, detail);
+            if (!string.IsNullOrEmpty(detail.Parsed.FromAddress))
+            {
+                _services.Contacts.RecordUsage([new MimeKit.MailboxAddress(detail.Parsed.FromName, detail.Parsed.FromAddress)], sent: false);
+            }
 
             if (item.IsUnread)
             {

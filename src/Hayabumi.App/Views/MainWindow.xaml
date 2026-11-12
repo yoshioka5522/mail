@@ -11,17 +11,28 @@
         <KeyBinding Key="F5" Command="{Binding SyncCommand}" />
         <KeyBinding Key="Delete" Command="{Binding DeleteCommand}" />
         <KeyBinding Key="Q" Modifiers="Ctrl" Command="{Binding ToggleReadCommand}" />
+        <KeyBinding Key="N" Modifiers="Ctrl" Command="{Binding NewMessageCommand}" />
+        <KeyBinding Key="R" Modifiers="Ctrl" Command="{Binding ReplyCommand}" />
+        <KeyBinding Key="R" Modifiers="Ctrl+Shift" Command="{Binding ReplyAllCommand}" />
+        <KeyBinding Key="F" Modifiers="Ctrl" Command="{Binding ForwardCommand}" />
     </Window.InputBindings>
 
     <DockPanel>
         <Menu DockPanel.Dock="Top" Background="White">
             <MenuItem Header="ファイル(_F)">
+                <MenuItem Header="新規作成(_N)" InputGestureText="Ctrl+N" Command="{Binding NewMessageCommand}" />
+                <MenuItem Header="下書き・送信待ちのメール(_D)…" Click="OnDraftsClick" />
+                <Separator />
                 <MenuItem Header="アカウントの追加(_A)…" Command="{Binding AddAccountCommand}" />
                 <Separator />
                 <MenuItem Header="終了(_X)" Click="OnExitClick" />
             </MenuItem>
             <MenuItem Header="メッセージ(_M)">
                 <MenuItem Header="受信(_R)" InputGestureText="F5" Command="{Binding SyncCommand}" />
+                <MenuItem Header="返信(_P)" InputGestureText="Ctrl+R" Command="{Binding ReplyCommand}" />
+                <MenuItem Header="全員に返信(_L)" InputGestureText="Ctrl+Shift+R" Command="{Binding ReplyAllCommand}" />
+                <MenuItem Header="転送(_W)" InputGestureText="Ctrl+F" Command="{Binding ForwardCommand}" />
+                <Separator />
                 <MenuItem Header="既読/未読の切り替え(_U)" InputGestureText="Ctrl+Q" Command="{Binding ToggleReadCommand}" />
                 <MenuItem Header="フラグの切り替え(_G)" Command="{Binding ToggleFlagCommand}" />
                 <MenuItem Header="削除(_D)" InputGestureText="Delete" Command="{Binding DeleteCommand}" />
@@ -45,10 +56,28 @@
                             <TextBlock Text="受信" />
                         </StackPanel>
                     </Button>
-                    <Button IsEnabled="False" ToolTip="新規作成（次の版で対応）">
+                    <Button Command="{Binding NewMessageCommand}" ToolTip="新規作成 (Ctrl+N)">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE932;" VerticalAlignment="Center" Margin="0,0,6,0" />
                             <TextBlock Text="新規作成" />
+                        </StackPanel>
+                    </Button>
+                    <Button Command="{Binding ReplyCommand}" ToolTip="返信 (Ctrl+R)">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE97A;" VerticalAlignment="Center" Margin="0,0,6,0" />
+                            <TextBlock Text="返信" />
+                        </StackPanel>
+                    </Button>
+                    <Button Command="{Binding ReplyAllCommand}" ToolTip="全員に返信 (Ctrl+Shift+R)">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE8C2;" VerticalAlignment="Center" Margin="0,0,6,0" />
+                            <TextBlock Text="全員に返信" />
+                        </StackPanel>
+                    </Button>
+                    <Button Command="{Binding ForwardCommand}" ToolTip="転送 (Ctrl+F)">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE72D;" VerticalAlignment="Center" Margin="0,0,6,0" />
+                            <TextBlock Text="転送" />
                         </StackPanel>
                     </Button>
                     <Button Command="{Binding DeleteCommand}" ToolTip="削除 (Delete)">
@@ -80,6 +109,14 @@
                         </TextBlock.Style>
                     </TextBlock>
                 </Grid>
+            </DockPanel>
+        </Border>
+
+        <Border DockPanel.Dock="Bottom" Background="#1F2937" Padding="12,6"
+                Visibility="{Binding IsUndoVisible, Converter={StaticResource BoolToVisibility}}">
+            <DockPanel>
+                <Button DockPanel.Dock="Right" Content="取り消す" Command="{Binding CancelSendCommand}" Margin="0" />
+                <TextBlock Text="{Binding UndoText}" Foreground="White" VerticalAlignment="Center" />
             </DockPanel>
         </Border>
 

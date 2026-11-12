@@ -29,6 +29,7 @@ public partial class MainWindow : Window
 
         viewModel.DetailChanged += (_, detail) => ShowDetail(detail);
         viewModel.AddAccountRequested += (_, _) => OpenAddAccount();
+        viewModel.ComposeRequested += (_, draft) => OpenCompose(draft);
         viewModel.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName == nameof(MainViewModel.SelectedFolder))
@@ -211,6 +212,20 @@ public partial class MainWindow : Window
         {
             _ = _viewModel.OnAccountAddedAsync();
         }
+    }
+
+    public void OpenCompose(Hayabumi.Core.Compose.Draft draft)
+    {
+        var window = new ComposeWindow(_services, draft) { Owner = this };
+        window.Queued += (_, item) => _viewModel.OnQueued(item);
+        window.Show();
+    }
+
+    private void OnDraftsClick(object sender, RoutedEventArgs e)
+    {
+        var window = new DraftsWindow(_services) { Owner = this };
+        window.OpenRequested += (_, draft) => OpenCompose(draft);
+        window.ShowDialog();
     }
 
     private void OnPreviewKeyDown(object sender, KeyEventArgs e)

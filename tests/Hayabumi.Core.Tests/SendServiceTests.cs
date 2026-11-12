@@ -83,6 +83,24 @@ public sealed class SendServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task Cancelling_a_saved_draft_restores_it_with_attachments()
+    {
+        var (account, _) = Setup();
+        _service.UndoDelay = TimeSpan.FromMinutes(1);
+        var file = Path.Combine(_db.Root, "a.txt");
+        File.WriteAllText(file, "x");
+        var draft = _drafts.AddAttachment(new Draft { AccountId = account.Id, To = "a@partner.jp", Subject = "保存済み" }, file);
+
+        var item = await _service.QueueAsync(draft, Ct);
+        Assert.Null(_drafts.Get(draft.Id));
+
+        var restored = _service.Cancel(item.Id)!;
+        Assert.Equal(draft.Id, restored.Id);
+        Assert.Equal("保存済み", _drafts.Get(draft.Id)!.Subject);
+        Assert.True(File.Exists(restored.Attachments.Single()));
+    }
+
+    [Fact]
     public async Task Failed_send_is_retried_later_and_gives_up_after_max_attempts()
     {
         var (account, _) = Setup();

@@ -26,8 +26,9 @@ public sealed class DraftRepository(MailDatabase database, string rootDirectory)
             saved = saved with { Id = id };
         }
 
+        // 送信を取り消したときは、削除済みの ID のまま戻ってくるため、なければ作り直す
         connection.Execute(
-            "UPDATE drafts SET account_id = $a, content = $c, updated_at = $u WHERE id = $id;",
+            "INSERT INTO drafts (id, account_id, content, updated_at) VALUES ($id, $a, $c, $u) ON CONFLICT (id) DO UPDATE SET account_id = $a, content = $c, updated_at = $u;",
             ("$a", saved.AccountId), ("$c", JsonSerializer.Serialize(saved, s_json)), ("$u", saved.UpdatedAt.ToUnixMs()), ("$id", saved.Id));
         return saved;
     }
@@ -45,6 +46,28 @@ public sealed class DraftRepository(MailDatabase database, string rootDirectory)
         Directory.CreateDirectory(directory);
         var destination = UniquePath(Path.Combine(directory, Path.GetFileName(sourcePath)));
         File.Copy(sourcePath, destination);
+        return Save(draft with { Attachments = [.. draft.Attachments, destination] });
+    }
+
+    /// <summary>メールの添付ファイルなど、ファイル以外の内容を添付する（転送時）。</summary>
+    public Draft AddAttachment(Draft draft, string fileName, Action<Stream> writeContent)
+    {
+        ArgumentNullException.ThrowIfNull(draft);
+        ArgumentNullException.ThrowIfNull(writeContent);
+        if (draft.Id == 0)
+        {
+            draft = Save(draft);
+        }
+
+        var directory = GetAttachmentDirectory(draft.Id);
+        Directory.CreateDirectory(directory);
+        var safeName = string.Join("_", fileName.Split(Path.GetInvalidFileNameChars()));
+        var destination = UniquePath(Path.Combine(directory, string.IsNullOrWhiteSpace(safeName) ? "添付ファイル" : safeName));
+        using (var output = File.Create(destination))
+        {
+            writeContent(output);
+        }
+
         return Save(draft with { Attachments = [.. draft.Attachments, destination] });
     }
 
