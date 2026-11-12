@@ -21,6 +21,10 @@ public sealed class MessageDetailViewModel
         ? Parsed.FromAddress
         : $"{Parsed.FromName} <{Parsed.FromAddress}>";
 
+    public string Initials => Avatar.Initials(string.IsNullOrWhiteSpace(Parsed.FromName) ? Parsed.FromAddress : Parsed.FromName);
+
+    public System.Windows.Media.Brush AvatarBrush => Avatar.Brush(Parsed.FromAddress);
+
     public string To => Parsed.ToText;
 
     public string Cc => Parsed.CcText;

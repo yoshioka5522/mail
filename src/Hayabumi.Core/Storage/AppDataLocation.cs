@@ -15,8 +15,10 @@ public sealed class AppDataLocation
 
     public AppDataLocation(string? baseDirectory = null)
     {
-        DefaultRoot = baseDirectory ?? Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), DefaultFolderName);
+        // 環境変数 HAYABUMI_DATA_ROOT で、データフォルダを一時的に変えられる（画面の確認用など）
+        DefaultRoot = baseDirectory
+            ?? (Environment.GetEnvironmentVariable("HAYABUMI_DATA_ROOT") is { Length: > 0 } overridden ? overridden : null)
+            ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), DefaultFolderName);
         Root = ReadPointer() ?? DefaultRoot;
     }
 

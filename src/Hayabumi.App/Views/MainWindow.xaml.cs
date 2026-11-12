@@ -408,6 +408,15 @@ public partial class MainWindow : Window
 
     private void OnExitClick(object sender, RoutedEventArgs e) => ExitApplication();
 
+    private void OnMoreClick(object sender, RoutedEventArgs e)
+    {
+        var menu = MoreButton.ContextMenu;
+        menu.PlacementTarget = MoreButton;
+        menu.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom;
+        menu.DataContext = DataContext;
+        menu.IsOpen = true;
+    }
+
     private void OnUpdateTokenClick(object sender, RoutedEventArgs e)
     {
         var dialog = new UpdateTokenWindow(_services.Updates) { Owner = this };

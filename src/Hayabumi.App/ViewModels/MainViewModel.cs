@@ -91,6 +91,12 @@ public sealed partial class MainViewModel : ObservableObject
 
     public ObservableCollection<AccountNodeViewModel> Accounts { get; } = [];
 
+    /// <summary>すべてのアカウントをまとめた表示（すべての受信トレイ・未読・フラグ付き）。</summary>
+    public IReadOnlyList<FolderNodeViewModel> UnifiedFolders { get; } =
+        [new(UnifiedView.AllInboxes), new(UnifiedView.Unread), new(UnifiedView.Flagged)];
+
+    private IEnumerable<FolderNodeViewModel> AllFolderNodes => UnifiedFolders.Concat(Accounts.SelectMany(a => a.Folders));
+
     public bool HasAccounts => Accounts.Count > 0;
 
     public AppServices Services => _services;
@@ -121,10 +127,19 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>メール作成画面を開くよう画面側に依頼する。</summary>
     public event EventHandler<Draft>? ComposeRequested;
 
+    /// <summary>サンプルデータで画面を確認するとき（サーバーに接続しない）。</summary>
+    public bool OfflineDemo { get; init; }
+
     public void Start()
     {
         CleanViewerDirectory();
         LoadAccounts();
+        if (OfflineDemo)
+        {
+            SelectedMessage = Messages is { Count: > 0 } list ? list[0] as MessageItemViewModel : null;
+            return;
+        }
+
         if (!HasAccounts)
         {
             StatusText = "アカウントを追加してください";
@@ -166,7 +181,9 @@ public sealed partial class MainViewModel : ObservableObject
         OnPropertyChanged(nameof(HasAccounts));
         UpdateUnreadCount();
         AccountsChanged?.Invoke(this, EventArgs.Empty);
-        SelectedFolder = Accounts.SelectMany(a => a.Folders).FirstOrDefault(f => f.Id == selectedId)
+        // 複数のアカウントがあるときは、最初に「すべての受信トレイ」を表示する
+        SelectedFolder = AllFolderNodes.FirstOrDefault(f => f.Id == selectedId)
+            ?? (Accounts.Count > 1 ? UnifiedFolders[0] : null)
             ?? Accounts.SelectMany(a => a.Folders).FirstOrDefault(f => f.Folder.Role == FolderRole.Inbox)
             ?? Accounts.SelectMany(a => a.Folders).FirstOrDefault();
     }
@@ -267,7 +284,7 @@ public sealed partial class MainViewModel : ObservableObject
                     {
                         lastRefresh = DateTime.UtcNow;
                         RefreshFolders(node);
-                        if (p.FolderId != 0 && p.FolderId == SelectedFolder?.Id && string.IsNullOrEmpty(SearchText))
+                        if (p.FolderId != 0 && (p.FolderId == SelectedFolder?.Id || SelectedFolder?.Unified is not null) && string.IsNullOrEmpty(SearchText))
                         {
                             RefreshListKeepingSelection();
                         }
@@ -346,7 +363,11 @@ public sealed partial class MainViewModel : ObservableObject
     private int _unreadInboxCount;
 
     private void UpdateUnreadCount()
-        => UnreadInboxCount = Accounts.SelectMany(a => a.Folders).Where(f => f.Folder.Role == FolderRole.Inbox).Sum(f => f.UnreadCount);
+    {
+        UnreadInboxCount = Accounts.SelectMany(a => a.Folders).Where(f => f.Folder.Role == FolderRole.Inbox).Sum(f => f.UnreadCount);
+        UnifiedFolders[0].UnreadCount = UnreadInboxCount;
+        UnifiedFolders[1].UnreadCount = _services.Messages.CountUnified(UnifiedView.Unread);
+    }
 
     private bool CanSync() => !IsSyncing;
 
@@ -417,7 +438,7 @@ public sealed partial class MainViewModel : ObservableObject
 
     private Account? CurrentAccount()
     {
-        var accountId = SelectedFolder?.Folder.AccountId;
+        var accountId = SelectedFolder?.Unified is null ? SelectedFolder?.Folder.AccountId : SelectedMessage?.Item.AccountId;
         return Accounts.FirstOrDefault(a => a.Account.Id == accountId)?.Account ?? Accounts.FirstOrDefault()?.Account;
     }
 
@@ -725,7 +746,7 @@ public sealed partial class MainViewModel : ObservableObject
     {
         if (!string.IsNullOrWhiteSpace(SearchText))
         {
-            var accountId = SelectedFolder?.Folder.AccountId;
+            long? accountId = SelectedFolder?.Unified is null ? SelectedFolder?.Folder.AccountId : null;
             var results = _services.Messages.Search(SearchText, accountId, limit: 1000);
             Messages = results.Select(r => new MessageItemViewModel(r)).ToList();
             ListHeader = $"「{SearchText.Trim()}」の検索結果 {results.Count:N0} 件" + (results.Count >= 1000 ? "（新しい 1,000 件）" : string.Empty);
@@ -737,6 +758,17 @@ public sealed partial class MainViewModel : ObservableObject
             _folderList = null;
             Messages = null;
             ListHeader = string.Empty;
+            return;
+        }
+
+        if (SelectedFolder.Unified is { } view)
+        {
+            var labels = Accounts.ToDictionary(a => a.Account.Id, a => a.EmailAddress);
+            var unifiedCount = _services.Messages.CountUnified(view);
+            _folderList = new VirtualMessageList(unifiedCount, (offset, limit) =>
+                [.. _services.Messages.GetUnifiedPage(view, offset, limit).Select(m => new MessageItemViewModel(m, labels.GetValueOrDefault(m.AccountId)))]);
+            Messages = _folderList;
+            ListHeader = $"{SelectedFolder.Name}  {unifiedCount:N0} 通";
             return;
         }
 
@@ -757,7 +789,7 @@ public sealed partial class MainViewModel : ObservableObject
         }
 
         var selectedId = SelectedMessage?.Id;
-        var count = _services.Messages.Count(SelectedFolder.Id);
+        var count = SelectedFolder.Unified is { } view ? _services.Messages.CountUnified(view) : _services.Messages.Count(SelectedFolder.Id);
         _folderList.Reset(count);
         ListHeader = $"{SelectedFolder.Name}  {count:N0} 通";
         if (selectedId is not null && count > 0)
@@ -787,13 +819,13 @@ public sealed partial class MainViewModel : ObservableObject
                 node.Folders.Add(new FolderNodeViewModel(folder));
             }
 
-            var same = Accounts.SelectMany(a => a.Folders).FirstOrDefault(f => f.Id == selectedId);
+            var same = AllFolderNodes.FirstOrDefault(f => f.Id == selectedId);
             if (same is not null)
             {
                 // 同じフォルダの新しい項目に差し替えるだけなので、一覧は読み直さない
                 SetSelectionQuietly(() => SelectedFolder = same);
             }
-            else if (SelectedFolder is null || SelectedFolder.Folder.AccountId == node.Account.Id)
+            else if (SelectedFolder is null || (SelectedFolder.Unified is null && SelectedFolder.Folder.AccountId == node.Account.Id))
             {
                 SelectedFolder = node.Folders.FirstOrDefault(f => f.Folder.Role == FolderRole.Inbox) ?? node.Folders.FirstOrDefault();
             }

@@ -6,10 +6,10 @@
         WindowStartupLocation="CenterOwner" ShowInTaskbar="False">
     <DockPanel Margin="16">
         <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
-            <Button Content="開く" IsDefault="True" Click="OnOpenClick" />
-            <Button x:Name="RetryButton" Content="再送" Click="OnRetryClick" />
-            <Button Content="削除" Click="OnDeleteClick" />
-            <Button Content="閉じる" IsCancel="True" Margin="0" />
+            <Button Margin="0,0,8,0" MinWidth="80" Content="開く" IsDefault="True" Click="OnOpenClick" />
+            <Button Margin="0,0,8,0" MinWidth="80" x:Name="RetryButton" Content="再送" Click="OnRetryClick" />
+            <Button Margin="0,0,8,0" MinWidth="80" Content="削除" Click="OnDeleteClick" />
+            <Button MinWidth="80" Content="閉じる" IsCancel="True" Margin="0" />
         </StackPanel>
         <ListView x:Name="Items" MouseDoubleClick="OnOpenClick">
             <ListView.View>

@@ -8,8 +8,8 @@
         <TextBlock x:Name="PromptText" TextWrapping="Wrap" Margin="0,0,0,8" />
         <TextBox x:Name="ValueBox" />
         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
-            <Button Content="OK" IsDefault="True" Click="OnOkClick" />
-            <Button Content="キャンセル" IsCancel="True" Margin="0" />
+            <Button Margin="0,0,8,0" MinWidth="80" Content="OK" IsDefault="True" Click="OnOkClick" />
+            <Button MinWidth="80" Content="キャンセル" IsCancel="True" Margin="0" />
         </StackPanel>
     </StackPanel>
 </Window>

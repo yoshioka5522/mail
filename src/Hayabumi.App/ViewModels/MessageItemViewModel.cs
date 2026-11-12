@@ -14,12 +14,24 @@ public sealed partial class MessageItemViewModel : ObservableObject
     [ObservableProperty]
     private bool _isFlagged;
 
-    public MessageItemViewModel(MessageListItem item)
+    public MessageItemViewModel(MessageListItem item, string? accountLabel = null)
     {
         Item = item;
+        AccountLabel = accountLabel;
         _isUnread = item.IsUnread && item.Id != 0;
         _isFlagged = item.IsFlagged;
     }
+
+    /// <summary>すべてのアカウントをまとめた表示で、どのアカウントのメールかを示す。</summary>
+    public string? AccountLabel { get; }
+
+    public bool ShowAccount => AccountLabel is not null;
+
+    public string Initials => Avatar.Initials(Sender);
+
+    public System.Windows.Media.Brush AvatarBrush => Avatar.Brush(Item.FromAddress.Length > 0 ? Item.FromAddress : Sender);
+
+    public System.Windows.Media.Brush AccountBrush => Avatar.Brush(AccountLabel);
 
     public MessageListItem Item { get; private set; }
 

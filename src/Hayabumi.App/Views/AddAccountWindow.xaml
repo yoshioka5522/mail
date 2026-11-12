@@ -12,8 +12,8 @@
             （2 段階認証の設定が必要）を入力して追加してください。
         </TextBlock>
         <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
-            <Button x:Name="GoogleButton" Content="Google でサインイン" Click="OnGoogleClick" Padding="14,6" />
-            <Button x:Name="MicrosoftButton" Content="Microsoft でサインイン" Click="OnMicrosoftClick" Padding="14,6" />
+            <Button Margin="0,0,8,0" MinWidth="80" x:Name="GoogleButton" Content="Google でサインイン" Click="OnGoogleClick" Padding="14,6" />
+            <Button Margin="0,0,8,0" MinWidth="80" x:Name="MicrosoftButton" Content="Microsoft でサインイン" Click="OnMicrosoftClick" Padding="14,6" />
         </StackPanel>
         <Separator Margin="0,8" />
         <TextBlock Text="そのほかのメール（プロバイダー、独自ドメインなど）は、情報を入力してください。" Margin="0,4,0,12" TextWrapping="Wrap" />
@@ -88,8 +88,8 @@
 
         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
             <ProgressBar x:Name="Busy" IsIndeterminate="True" Width="80" Height="8" Margin="0,0,12,0" Visibility="Collapsed" />
-            <Button x:Name="OkButton" Content="接続を確認して追加" IsDefault="True" Click="OnOkClick" />
-            <Button Content="キャンセル" IsCancel="True" Margin="0" />
+            <Button Margin="0,0,8,0" MinWidth="80" x:Name="OkButton" Content="接続を確認して追加" IsDefault="True" Click="OnOkClick" />
+            <Button MinWidth="80" Content="キャンセル" IsCancel="True" Margin="0" />
         </StackPanel>
     </StackPanel>
 </Window>

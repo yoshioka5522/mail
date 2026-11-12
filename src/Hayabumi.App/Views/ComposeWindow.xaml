@@ -16,25 +16,25 @@
     <DockPanel>
         <Border DockPanel.Dock="Top" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1" Padding="8,6">
             <StackPanel Orientation="Horizontal">
-                <Button x:Name="SendButton" Click="OnSendClick" ToolTip="送信 (Ctrl+Enter)">
+                <Button Margin="0,0,8,0" MinWidth="80" x:Name="SendButton" Click="OnSendClick" ToolTip="送信 (Ctrl+Enter)">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE724;" VerticalAlignment="Center" Margin="0,0,6,0" />
                         <TextBlock Text="送信" FontWeight="SemiBold" />
                     </StackPanel>
                 </Button>
-                <Button Click="OnAttachClick" ToolTip="ファイルを添付（ドラッグ＆ドロップでも添付できます）">
+                <Button Margin="0,0,8,0" MinWidth="80" Click="OnAttachClick" ToolTip="ファイルを添付（ドラッグ＆ドロップでも添付できます）">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE723;" VerticalAlignment="Center" Margin="0,0,6,0" />
                         <TextBlock Text="添付" />
                     </StackPanel>
                 </Button>
-                <Button Click="OnSaveClick" ToolTip="下書きに保存 (Ctrl+S)">
+                <Button Margin="0,0,8,0" MinWidth="80" Click="OnSaveClick" ToolTip="下書きに保存 (Ctrl+S)">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE74E;" VerticalAlignment="Center" Margin="0,0,6,0" />
                         <TextBlock Text="下書き保存" />
                     </StackPanel>
                 </Button>
-                <Button Click="OnDiscardClick" ToolTip="この下書きを破棄">
+                <Button Margin="0,0,8,0" MinWidth="80" Click="OnDiscardClick" ToolTip="この下書きを破棄">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE74D;" VerticalAlignment="Center" Margin="0,0,6,0" />
                         <TextBlock Text="破棄" />

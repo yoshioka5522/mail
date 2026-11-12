@@ -1,22 +1,145 @@
 <Application x:Class="Hayabumi.App.App"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             ShutdownMode="OnExplicitShutdown">
+             ShutdownMode="OnExplicitShutdown"
+             ThemeMode="Light">
+    <!-- ThemeMode="Light": Windows 11 風（Fluent）の見た目を、すべての画面の標準のコントロールに適用する -->
     <Application.Resources>
         <FontFamily x:Key="UiFont">Yu Gothic UI, Meiryo UI, Segoe UI</FontFamily>
-        <SolidColorBrush x:Key="AccentBrush" Color="#2F6FDE" />
+        <FontFamily x:Key="IconFont">Segoe Fluent Icons, Segoe MDL2 Assets</FontFamily>
+
+        <!-- 色 -->
+        <SolidColorBrush x:Key="AccentBrush" Color="#2563EB" />
+        <SolidColorBrush x:Key="AccentHoverBrush" Color="#1D4ED8" />
+        <SolidColorBrush x:Key="AccentSoftBrush" Color="#E8F0FE" />
+        <SolidColorBrush x:Key="TextBrush" Color="#111827" />
         <SolidColorBrush x:Key="SubtleBrush" Color="#6B7280" />
         <SolidColorBrush x:Key="BorderBrush" Color="#E5E7EB" />
-        <SolidColorBrush x:Key="PaneBrush" Color="#F7F8FA" />
+        <SolidColorBrush x:Key="PaneBrush" Color="#F3F4F6" />
+        <SolidColorBrush x:Key="SurfaceBrush" Color="#FFFFFF" />
+        <SolidColorBrush x:Key="HoverBrush" Color="#0F000000" />
+        <SolidColorBrush x:Key="WarningBackBrush" Color="#FFF8E1" />
+        <SolidColorBrush x:Key="WarningBorderBrush" Color="#F0D58C" />
+        <SolidColorBrush x:Key="FlagBrush" Color="#EA580C" />
+
         <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
 
-        <Style TargetType="Button">
-            <Setter Property="Padding" Value="10,4" />
-            <Setter Property="Margin" Value="0,0,6,0" />
-            <Setter Property="MinWidth" Value="72" />
+        <!-- ツールバーの平らなボタン（アイコンと文字） -->
+        <Style x:Key="ToolbarButton" TargetType="Button">
+            <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Padding" Value="10,6" />
+            <Setter Property="Margin" Value="0,0,2,0" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Root" Background="{TemplateBinding Background}" CornerRadius="6" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="{StaticResource HoverBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="#1A000000" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.4" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
-        <Style TargetType="TextBox">
-            <Setter Property="Padding" Value="4,3" />
+
+        <!-- 強調ボタン（新規作成・送信など） -->
+        <Style x:Key="PrimaryButton" TargetType="Button">
+            <Setter Property="Foreground" Value="White" />
+            <Setter Property="Background" Value="{StaticResource AccentBrush}" />
+            <Setter Property="Padding" Value="14,7" />
+            <Setter Property="Margin" Value="0,0,8,0" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Root" Background="{TemplateBinding Background}" CornerRadius="6" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" TextElement.Foreground="White" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="{StaticResource AccentHoverBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.5" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
+
+        <!-- 頭文字の丸いアイコン -->
+        <Style x:Key="AvatarText" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="White" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="HorizontalAlignment" Value="Center" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+
+        <!-- フォルダ一覧の項目 -->
+        <Style x:Key="NavItem" TargetType="ListBoxItem">
+            <Setter Property="Padding" Value="10,6" />
+            <Setter Property="Margin" Value="6,1" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBoxItem">
+                        <Border x:Name="Root" Background="Transparent" CornerRadius="6" Padding="{TemplateBinding Padding}">
+                            <Grid>
+                                <Border x:Name="Indicator" Width="3" Height="16" CornerRadius="1.5" Background="{StaticResource AccentBrush}"
+                                        HorizontalAlignment="Left" Margin="-8,0,0,0" Visibility="Collapsed" />
+                                <ContentPresenter />
+                            </Grid>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="{StaticResource HoverBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="#E3E8F0" />
+                                <Setter TargetName="Indicator" Property="Visibility" Value="Visible" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- メール一覧の項目 -->
+        <Style x:Key="MessageItem" TargetType="ListBoxItem">
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Margin" Value="6,1" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBoxItem">
+                        <Border x:Name="Root" Background="Transparent" CornerRadius="6" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="#F5F7FA" />
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="{StaticResource AccentSoftBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
     </Application.Resources>
 </Application>

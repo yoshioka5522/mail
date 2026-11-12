@@ -6,8 +6,8 @@
         WindowStartupLocation="CenterOwner" ShowInTaskbar="False">
     <DockPanel Margin="12">
         <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
-            <Button Content="保存" IsDefault="True" Click="OnSaveClick" />
-            <Button Content="キャンセル" IsCancel="True" Margin="0" />
+            <Button Margin="0,0,8,0" MinWidth="80" Content="保存" IsDefault="True" Click="OnSaveClick" />
+            <Button MinWidth="80" Content="キャンセル" IsCancel="True" Margin="0" />
         </StackPanel>
         <TabControl>
             <TabItem Header="全般">
@@ -30,7 +30,7 @@
                 <DockPanel Margin="12">
                     <StackPanel DockPanel.Dock="Left" Width="200" Margin="0,0,12,0">
                         <ListBox x:Name="AccountList" Height="320" DisplayMemberPath="EmailAddress" SelectionChanged="OnAccountSelected" />
-                        <Button Content="アカウントを削除" Click="OnDeleteAccountClick" Margin="0,8,0,0" HorizontalAlignment="Left" />
+                        <Button MinWidth="80" Content="アカウントを削除" Click="OnDeleteAccountClick" Margin="0,8,0,0" HorizontalAlignment="Left" />
                     </StackPanel>
                     <StackPanel x:Name="AccountPanel" IsEnabled="False">
                         <TextBlock Text="表示名（差出人の名前）" Margin="0,0,0,4" />
@@ -42,7 +42,7 @@
                             <PasswordBox x:Name="PasswordBox" Width="220" Padding="4,3" />
                             <TextBlock Text=" 変更する場合だけ入力" VerticalAlignment="Center" Foreground="{StaticResource SubtleBrush}" />
                         </StackPanel>
-                        <Button x:Name="ReSignInButton" Content="もう一度サインイン" Click="OnReSignInClick" HorizontalAlignment="Left" Margin="0,4,0,0" />
+                        <Button MinWidth="80" x:Name="ReSignInButton" Content="もう一度サインイン" Click="OnReSignInClick" HorizontalAlignment="Left" Margin="0,4,0,0" />
                         <TextBlock x:Name="ServerText" Margin="0,10,0,0" Foreground="{StaticResource SubtleBrush}" TextWrapping="Wrap" />
                     </StackPanel>
                 </DockPanel>
@@ -61,8 +61,8 @@
                     <TextBlock Text="データフォルダ（メール、アドレス帳、設定）" Margin="0,0,0,4" />
                     <TextBox x:Name="DataFolderBox" IsReadOnly="True" />
                     <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
-                        <Button Content="フォルダを開く" Click="OnOpenDataFolderClick" />
-                        <Button Content="別の場所へ移す…" Click="OnMoveDataFolderClick" />
+                        <Button Margin="0,0,8,0" MinWidth="80" Content="フォルダを開く" Click="OnOpenDataFolderClick" />
+                        <Button Margin="0,0,8,0" MinWidth="80" Content="別の場所へ移す…" Click="OnMoveDataFolderClick" />
                     </StackPanel>
                     <TextBlock TextWrapping="Wrap" Margin="0,10,0,0" Foreground="{StaticResource SubtleBrush}">
                         別の場所へ移すと、メールと設定をコピーしてから Hayabumi を再起動します。元のフォルダは残すので、

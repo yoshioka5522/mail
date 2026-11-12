@@ -22,10 +22,10 @@
                     <TextBlock Text="メモ" />
                     <TextBox x:Name="NoteBox" Height="80" AcceptsReturn="True" TextWrapping="Wrap" Margin="0,2,0,8" />
                     <WrapPanel>
-                        <Button Content="新規" Click="OnNewContactClick" Margin="0,0,6,6" />
-                        <Button Content="保存" Click="OnSaveContactClick" Margin="0,0,6,6" />
-                        <Button Content="削除" Click="OnDeleteContactClick" Margin="0,0,6,6" />
-                        <Button Content="メールを作成" Click="OnComposeClick" Margin="0,0,6,6" />
+                        <Button MinWidth="80" Content="新規" Click="OnNewContactClick" Margin="0,0,6,6" />
+                        <Button MinWidth="80" Content="保存" Click="OnSaveContactClick" Margin="0,0,6,6" />
+                        <Button MinWidth="80" Content="削除" Click="OnDeleteContactClick" Margin="0,0,6,6" />
+                        <Button MinWidth="80" Content="メールを作成" Click="OnComposeClick" Margin="0,0,6,6" />
                     </WrapPanel>
                 </StackPanel>
             </DockPanel>
@@ -34,8 +34,8 @@
             <DockPanel Margin="8">
                 <DockPanel DockPanel.Dock="Left" Width="220" Margin="0,0,12,0">
                     <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="0,6,0,0">
-                        <Button Content="新規" Click="OnNewGroupClick" />
-                        <Button Content="削除" Click="OnDeleteGroupClick" />
+                        <Button Margin="0,0,8,0" MinWidth="80" Content="新規" Click="OnNewGroupClick" />
+                        <Button Margin="0,0,8,0" MinWidth="80" Content="削除" Click="OnDeleteGroupClick" />
                     </StackPanel>
                     <ListBox x:Name="GroupList" DisplayMemberPath="Name" SelectionChanged="OnGroupSelected" />
                 </DockPanel>
@@ -45,7 +45,7 @@
                         <TextBox x:Name="GroupNameBox" Margin="0,2,0,8" />
                         <TextBlock Text="メンバー（登録した連絡先から選ぶ）" />
                     </StackPanel>
-                    <Button DockPanel.Dock="Bottom" Content="保存" Click="OnSaveGroupClick" HorizontalAlignment="Left" Margin="0,8,0,0" />
+                    <Button MinWidth="80" DockPanel.Dock="Bottom" Content="保存" Click="OnSaveGroupClick" HorizontalAlignment="Left" Margin="0,8,0,0" />
                     <ListBox x:Name="MemberList" Margin="0,2,0,0">
                         <ListBox.ItemTemplate>
                             <DataTemplate>

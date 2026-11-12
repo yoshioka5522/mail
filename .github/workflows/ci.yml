@@ -31,6 +31,27 @@ jobs:
       - name: Publish (portable)
         run: dotnet publish src/Hayabumi.App -c Release -o publish
 
+      # 画面の確認: サンプルデータで起動して画面を保存する（起動時のエラーもここで分かる）
+      - name: UI screenshot
+        shell: pwsh
+        run: |
+          $env:HAYABUMI_DATA_ROOT = Join-Path $env:RUNNER_TEMP "hb-demo"
+          $shots = Join-Path $env:RUNNER_TEMP "shots"
+          New-Item -ItemType Directory -Force $shots | Out-Null
+          $p = Start-Process -FilePath "publish\Hayabumi.exe" -ArgumentList "--demo","--screenshot",(Join-Path $shots "main.png") -PassThru
+          if (-not $p.WaitForExit(90000)) { $p.Kill(); Write-Warning "画面の保存が時間内に終わりませんでした" }
+          Copy-Item (Join-Path $env:HAYABUMI_DATA_ROOT "logs\*") $shots -ErrorAction SilentlyContinue
+          Get-ChildItem $shots
+          if (-not (Test-Path (Join-Path $shots "main.png"))) { throw "画面を保存できませんでした（起動時のエラーの可能性があります）" }
+
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshots-${{ github.sha }}
+          path: ${{ runner.temp }}/shots
+          retention-days: 14
+
       - name: Upload portable build
         uses: actions/upload-artifact@v4
         with:

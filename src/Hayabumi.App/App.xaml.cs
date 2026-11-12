@@ -35,7 +35,13 @@ public partial class App : Application
             return;
         }
 
-        var viewModel = new MainViewModel(_services);
+        var demo = e.Args.Contains("--demo");
+        if (demo)
+        {
+            DemoData.Seed(_services);
+        }
+
+        var viewModel = new MainViewModel(_services) { OfflineDemo = demo };
         var window = new MainWindow(viewModel, _services);
         MainWindow = window;
 
@@ -81,6 +87,11 @@ public partial class App : Application
         { IsBackground = true, Name = "Hayabumi.ShowSignal" };
         listener.Start();
 
+        if (e.Args.Contains("--screenshot"))
+        {
+            window.WindowState = WindowState.Maximized;
+        }
+
         var startMinimized = e.Args.Contains("--minimized");
         if (!startMinimized)
         {
@@ -88,6 +99,43 @@ public partial class App : Application
         }
 
         viewModel.Start();
+
+        // 画面の確認用: --screenshot <ファイル> で、表示が落ち着いてから画面を保存して終了する
+        var shotIndex = Array.IndexOf(e.Args, "--screenshot");
+        if (shotIndex >= 0 && shotIndex + 1 < e.Args.Length)
+        {
+            var shotPath = e.Args[shotIndex + 1];
+            var timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(6) };
+            timer.Tick += (_, _) =>
+            {
+                timer.Stop();
+                try
+                {
+                    window.Activate();
+                    ScreenCapture.Save(shotPath);
+                    var compose = new Views.ComposeWindow(_services, Hayabumi.Core.Compose.DraftFactory.CreateReply(
+                        _services.Accounts.GetAll()[0],
+                        new MimeKit.MimeMessage([new MimeKit.MailboxAddress("山田 太郎", "yamada@partner.example.jp")], [], "来週の定例会議の日程について",
+                            new MimeKit.TextPart("plain") { Text = "来週の定例会議ですが、火曜日の 10 時からでいかがでしょうか。" }),
+                        null, replyAll: false));
+                    compose.Show();
+                    var composeTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(3) };
+                    composeTimer.Tick += (_, _) =>
+                    {
+                        composeTimer.Stop();
+                        ScreenCapture.Save(System.IO.Path.ChangeExtension(shotPath, null) + "-compose.png");
+                        window.ExitApplication();
+                    };
+                    composeTimer.Start();
+                }
+                catch (Exception ex)
+                {
+                    Log.Error("画面の保存に失敗しました", ex);
+                    Shutdown(2);
+                }
+            };
+            timer.Start();
+        }
     }
 
     protected override void OnExit(ExitEventArgs e)
