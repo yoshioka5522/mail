@@ -29,7 +29,12 @@
 
         <TextBlock x:Name="PresetNote" TextWrapping="Wrap" Foreground="#8A5A00" Margin="0,8,0,0" Visibility="Collapsed" />
 
-        <GroupBox Header="受信サーバー（IMAP）" Margin="0,12,0,0" Padding="8">
+        <GroupBox Header="受信サーバー" Margin="0,12,0,0" Padding="8">
+            <StackPanel>
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                <RadioButton x:Name="ImapRadio" Content="IMAP（おすすめ。ほかの端末と既読やフォルダを共有）" IsChecked="True" Checked="OnProtocolChanged" Margin="0,0,16,0" />
+                <RadioButton x:Name="Pop3Radio" Content="POP3" Checked="OnProtocolChanged" />
+            </StackPanel>
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
@@ -44,6 +49,9 @@
                     <ComboBoxItem Content="なし（非推奨）" />
                 </ComboBox>
             </Grid>
+            <TextBlock x:Name="Pop3Note" Visibility="Collapsed" TextWrapping="Wrap" FontSize="12" Foreground="{StaticResource SubtleBrush}" Margin="0,6,0,0"
+                       Text="POP3 では、受信したメールはこの PC に保存し、サーバーにも残します。この PC で完全に削除したメールは、サーバーからも削除します。" />
+            </StackPanel>
         </GroupBox>
 
         <GroupBox Header="送信サーバー（SMTP）" Margin="0,8,0,0" Padding="8">
@@ -63,8 +71,7 @@
             </Grid>
         </GroupBox>
 
-        <TextBlock Text="※ この版は IMAP とパスワード認証（アプリ パスワードを含む）に対応しています。POP3 と OAuth（Gmail・Microsoft のサインイン）は次の版で対応します。"
-                   TextWrapping="Wrap" Foreground="{StaticResource SubtleBrush}" FontSize="12" Margin="0,10,0,0" />
+
 
         <TextBlock x:Name="ErrorText" TextWrapping="Wrap" Foreground="#C62828" Margin="0,8,0,0" Visibility="Collapsed" />
 

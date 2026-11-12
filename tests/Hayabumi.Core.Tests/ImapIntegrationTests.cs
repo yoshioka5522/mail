@@ -17,6 +17,7 @@ namespace Hayabumi.Core.Tests;
 /// 環境変数 HAYABUMI_IMAP_TEST（例: 127.0.0.1:10143:user:password、暗号化なし）を設定したときだけ実行する。
 /// 指定したユーザーのメールボックスは中身を消して使うため、テスト専用のサーバーで実行すること。
 /// </summary>
+[Collection(RealServerCollection.Name)]
 public sealed class ImapIntegrationTests : IDisposable
 {
     private readonly TestDatabase _db = new();

@@ -8,6 +8,9 @@ public enum PendingOperationKind
     SetFlags = 1,
     Move = 2,
     DeletePermanently = 3,
+
+    /// <summary>POP3 サーバーからの削除（UIDL で指定する）。</summary>
+    Pop3Delete = 4,
 }
 
 /// <summary>サーバーへの反映を待っている操作。</summary>
@@ -21,6 +24,10 @@ public sealed record PendingOperation
     public MessageFlags Flags { get; init; }
     public bool Add { get; init; }
     public string? DestinationFullName { get; init; }
+
+    /// <summary>UID 以外でメッセージを指定する場合（POP3 の UIDL）。</summary>
+    public IReadOnlyList<string> RemoteIds { get; init; } = [];
+
     public int Attempts { get; init; }
 }
 
@@ -29,13 +36,13 @@ public sealed record PendingOperation
 /// </summary>
 public sealed class PendingOperationRepository(MailDatabase database)
 {
-    private sealed record Payload(string Folder, uint[] Uids, int Flags, bool Add, string? Destination);
+    private sealed record Payload(string Folder, uint[] Uids, int Flags, bool Add, string? Destination, string[]? RemoteIds = null);
 
     public long Enqueue(PendingOperation operation)
     {
         ArgumentNullException.ThrowIfNull(operation);
         var payload = JsonSerializer.Serialize(new Payload(
-            operation.FolderFullName, [.. operation.Uids], (int)operation.Flags, operation.Add, operation.DestinationFullName));
+            operation.FolderFullName, [.. operation.Uids], (int)operation.Flags, operation.Add, operation.DestinationFullName, [.. operation.RemoteIds]));
         using var connection = database.Open();
         return connection.Scalar<long>(
             "INSERT INTO pending_operations (account_id, kind, payload, created_at) VALUES ($a, $k, $p, $c) RETURNING id;",
@@ -62,6 +69,7 @@ public sealed class PendingOperationRepository(MailDatabase database)
                 Flags = (MessageFlags)payload.Flags,
                 Add = payload.Add,
                 DestinationFullName = payload.Destination,
+                RemoteIds = payload.RemoteIds ?? [],
                 Attempts = reader.GetInt32(4),
             });
         }

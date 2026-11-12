@@ -21,7 +21,7 @@ public sealed class MailActions(FolderRepository folders, MessageRepository mess
         {
             var folder = folders.Get(group.Key) ?? throw new InvalidOperationException("フォルダが見つかりません。");
             var uids = group.Where(i => i.Uid is not null).Select(i => i.Uid!.Value).ToList();
-            if (uids.Count > 0)
+            if (uids.Count > 0 && !folder.IsLocal)
             {
                 pending.Enqueue(new PendingOperation
                 {
@@ -60,6 +60,19 @@ public sealed class MailActions(FolderRepository folders, MessageRepository mess
                 throw new NotSupportedException("別のアカウントへの移動にはまだ対応していません。");
             }
 
+            if (folder.IsLocal || destination.IsLocal)
+            {
+                if (!folder.IsLocal || !destination.IsLocal)
+                {
+                    throw new NotSupportedException("サーバーのフォルダとローカルフォルダの間の移動にはまだ対応していません。");
+                }
+
+                messages.MoveLocal([.. group.Select(i => i.Id)], destination.Id);
+                folders.RefreshCounts(folder.Id);
+                folders.RefreshCounts(destination.Id);
+                continue;
+            }
+
             var uids = group.Where(i => i.Uid is not null).Select(i => i.Uid!.Value).ToList();
             files.DeleteMany(messages.DeleteByUids(folder.Id, uids));
             pending.Enqueue(new PendingOperation
@@ -85,6 +98,27 @@ public sealed class MailActions(FolderRepository folders, MessageRepository mess
             if (trash is not null && trash.Id != folder.Id)
             {
                 Move([.. group], trash);
+                continue;
+            }
+
+            if (folder.IsLocal)
+            {
+                // POP3 で受信したメールは、サーバーからも削除する（次回の受信時）
+                var uidls = group.Select(i => messages.GetPop3Uidl(i.Id)).OfType<string>().ToList();
+                files.DeleteMany(messages.DeleteByIds([.. group.Select(i => i.Id)]));
+                if (uidls.Count > 0)
+                {
+                    pending.Enqueue(new PendingOperation
+                    {
+                        AccountId = folder.AccountId,
+                        Kind = PendingOperationKind.Pop3Delete,
+                        FolderFullName = folder.FullName,
+                        Uids = [],
+                        RemoteIds = uidls,
+                    });
+                }
+
+                folders.RefreshCounts(folder.Id);
                 continue;
             }
 

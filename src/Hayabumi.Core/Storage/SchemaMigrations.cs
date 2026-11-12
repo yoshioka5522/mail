@@ -143,6 +143,13 @@ internal static class SchemaMigrations
             PRIMARY KEY (group_id, contact_id)
         );
         """,
+
+        // 3: POP3 とローカルフォルダ
+        """
+        ALTER TABLE folders ADD COLUMN is_local INTEGER NOT NULL DEFAULT 0;
+        ALTER TABLE messages ADD COLUMN pop3_uidl TEXT;
+        CREATE INDEX ix_messages_pop3_uidl ON messages (folder_id, pop3_uidl) WHERE pop3_uidl IS NOT NULL;
+        """,
     ];
 
     public static int LatestVersion => s_migrations.Length;

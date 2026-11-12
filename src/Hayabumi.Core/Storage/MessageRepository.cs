@@ -25,11 +25,11 @@ public sealed class MessageRepository(MailDatabase database)
         using var insert = connection.CreateCommand(
             """
             INSERT OR IGNORE INTO messages (account_id, folder_id, uid, message_id, in_reply_to, subject, from_name, from_address,
-                                            to_text, cc_text, date_utc, size, flags, keywords, modseq, has_attachments, preview)
-            VALUES ($a, $f, $uid, $mid, $irt, $s, $fn, $fa, $to, $cc, $d, $size, $flags, $kw, $ms, $att, $pv)
+                                            to_text, cc_text, date_utc, size, flags, keywords, modseq, has_attachments, preview, pop3_uidl)
+            VALUES ($a, $f, $uid, $mid, $irt, $s, $fn, $fa, $to, $cc, $d, $size, $flags, $kw, $ms, $att, $pv, $uidl)
             RETURNING id;
             """);
-        var p = AddParameters(insert, "$a", "$f", "$uid", "$mid", "$irt", "$s", "$fn", "$fa", "$to", "$cc", "$d", "$size", "$flags", "$kw", "$ms", "$att", "$pv");
+        var p = AddParameters(insert, "$a", "$f", "$uid", "$mid", "$irt", "$s", "$fn", "$fa", "$to", "$cc", "$d", "$size", "$flags", "$kw", "$ms", "$att", "$pv", "$uidl");
         p["$a"].Value = accountId;
         p["$f"].Value = folderId;
 
@@ -55,6 +55,7 @@ public sealed class MessageRepository(MailDatabase database)
             p["$ms"].Value = m.ModSeq is null ? DBNull.Value : (long)m.ModSeq.Value;
             p["$att"].Value = m.HasAttachments ? 1 : 0;
             p["$pv"].Value = m.Preview;
+            p["$uidl"].Value = (object?)m.Pop3Uidl ?? DBNull.Value;
 
             var id = insert.ExecuteScalar();
             if (id is null or DBNull)
@@ -93,6 +94,14 @@ public sealed class MessageRepository(MailDatabase database)
             ("$a", accountId), ("$r", (int)role));
     }
 
+    public long? FindFolderIdByRole(long accountId, FolderRole role)
+    {
+        using var connection = database.Open();
+        return connection.Scalar<long?>(
+            "SELECT id FROM folders WHERE account_id = $a AND role = $r ORDER BY id LIMIT 1;",
+            ("$a", accountId), ("$r", (int)role));
+    }
+
     public int Count(long folderId)
     {
         using var connection = database.Open();
@@ -113,6 +122,71 @@ public sealed class MessageRepository(MailDatabase database)
     {
         using var connection = database.Open();
         return (uint)connection.Scalar<long>("SELECT IFNULL(MAX(uid), 0) FROM messages WHERE folder_id = $f;", ("$f", folderId));
+    }
+
+    /// <summary>登録した 1 通の ID を返す（ローカルフォルダへの保存用）。</summary>
+    public long InsertOne(long accountId, long folderId, NewMessage message)
+    {
+        ArgumentNullException.ThrowIfNull(message);
+        InsertMany(accountId, folderId, [message]);
+        using var connection = database.Open();
+        return connection.Scalar<long>("SELECT MAX(id) FROM messages WHERE folder_id = $f;", ("$f", folderId));
+    }
+
+    public IReadOnlySet<string> GetPop3Uidls(long accountId)
+    {
+        using var connection = database.Open();
+        using var command = connection.CreateCommand("SELECT pop3_uidl FROM messages WHERE account_id = $a AND pop3_uidl IS NOT NULL;", ("$a", accountId));
+        using var reader = command.ExecuteReader();
+        var result = new HashSet<string>(StringComparer.Ordinal);
+        while (reader.Read())
+        {
+            result.Add(reader.GetString(0));
+        }
+
+        return result;
+    }
+
+    public string? GetPop3Uidl(long id)
+    {
+        using var connection = database.Open();
+        return connection.Scalar<string>("SELECT pop3_uidl FROM messages WHERE id = $id;", ("$id", id));
+    }
+
+    /// <summary>ローカルフォルダ間でメールを移動する。</summary>
+    public void MoveLocal(IReadOnlyCollection<long> ids, long destinationFolderId)
+    {
+        ArgumentNullException.ThrowIfNull(ids);
+        using var connection = database.Open();
+        using var transaction = connection.BeginWrite();
+        foreach (var id in ids)
+        {
+            connection.Execute("UPDATE messages SET folder_id = $f WHERE id = $id;", ("$f", destinationFolderId), ("$id", id));
+        }
+
+        transaction.Commit();
+    }
+
+    /// <summary>ID を指定して削除する（ローカルフォルダ用）。削除したメールの .eml の相対パスを返す。</summary>
+    public IReadOnlyList<string> DeleteByIds(IReadOnlyCollection<long> ids)
+    {
+        ArgumentNullException.ThrowIfNull(ids);
+        using var connection = database.Open();
+        using var transaction = connection.BeginWrite();
+        var files = new List<string>();
+        foreach (var id in ids)
+        {
+            if (connection.Scalar<string>("SELECT file_path FROM messages WHERE id = $id;", ("$id", id)) is { } path)
+            {
+                files.Add(path);
+            }
+
+            connection.Execute("DELETE FROM messages_fts WHERE rowid = $id;", ("$id", id));
+            connection.Execute("DELETE FROM messages WHERE id = $id;", ("$id", id));
+        }
+
+        transaction.Commit();
+        return files;
     }
 
     public IReadOnlyList<uint> GetUids(long folderId)

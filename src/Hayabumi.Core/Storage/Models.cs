@@ -43,6 +43,9 @@ public sealed record Folder
     public ulong? HighestModSeq { get; init; }
     public int UnreadCount { get; init; }
     public int TotalCount { get; init; }
+
+    /// <summary>サーバーと同期しない、この PC だけのフォルダ（POP3 のアカウントのフォルダなど）。</summary>
+    public bool IsLocal { get; init; }
 }
 
 /// <summary>サーバーから取得したヘッダー情報など、メッセージを登録するときの値。</summary>
@@ -63,6 +66,9 @@ public sealed record NewMessage
     public ulong? ModSeq { get; init; }
     public bool HasAttachments { get; init; }
     public string Preview { get; init; } = string.Empty;
+
+    /// <summary>POP3 のメッセージ ID（UIDL）。</summary>
+    public string? Pop3Uidl { get; init; }
 }
 
 /// <summary>メール一覧の1行分。</summary>

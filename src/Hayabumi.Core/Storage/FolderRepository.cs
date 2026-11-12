@@ -5,22 +5,22 @@ namespace Hayabumi.Core.Storage;
 public sealed class FolderRepository(MailDatabase database)
 {
     private const string SelectColumns = """
-        SELECT id, account_id, full_name, display_name, delimiter, role, uid_validity, highest_modseq, unread_count, total_count
+        SELECT id, account_id, full_name, display_name, delimiter, role, uid_validity, highest_modseq, unread_count, total_count, is_local
         FROM folders
         """;
 
     /// <summary>フォルダを登録する。既にあれば表示名と役割を更新する。</summary>
-    public Folder Upsert(long accountId, string fullName, string displayName, char? delimiter, FolderRole role)
+    public Folder Upsert(long accountId, string fullName, string displayName, char? delimiter, FolderRole role, bool isLocal = false)
     {
         using var connection = database.Open();
         var id = connection.Scalar<long>(
             """
-            INSERT INTO folders (account_id, full_name, display_name, delimiter, role)
-            VALUES ($a, $f, $d, $del, $r)
+            INSERT INTO folders (account_id, full_name, display_name, delimiter, role, is_local)
+            VALUES ($a, $f, $d, $del, $r, $local)
             ON CONFLICT (account_id, full_name) DO UPDATE SET display_name = excluded.display_name, delimiter = excluded.delimiter, role = excluded.role
             RETURNING id;
             """,
-            ("$a", accountId), ("$f", fullName), ("$d", displayName), ("$del", delimiter?.ToString()), ("$r", (int)role));
+            ("$a", accountId), ("$f", fullName), ("$d", displayName), ("$del", delimiter?.ToString()), ("$r", (int)role), ("$local", isLocal ? 1 : 0));
         return Get(id)!;
     }
 
@@ -91,5 +91,6 @@ public sealed class FolderRepository(MailDatabase database)
         HighestModSeq = r.GetNullableInt64(7) is { } m ? (ulong)m : null,
         UnreadCount = r.GetInt32(8),
         TotalCount = r.GetInt32(9),
+        IsLocal = r.GetInt32(10) != 0,
     };
 }

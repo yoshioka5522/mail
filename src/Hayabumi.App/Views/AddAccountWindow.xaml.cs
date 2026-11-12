@@ -19,6 +19,29 @@ public partial class AddAccountWindow : Window
         Closed += (_, _) => _connecting?.Cancel();
     }
 
+    private bool IsPop3 => Pop3Radio.IsChecked == true;
+
+    private void OnProtocolChanged(object sender, RoutedEventArgs e)
+    {
+        if (Pop3Note is null)
+        {
+            return;
+        }
+
+        Pop3Note.Visibility = IsPop3 ? Visibility.Visible : Visibility.Collapsed;
+        ApplyIncomingPreset(ServerPresets.Find(EmailBox.Text.Trim()));
+    }
+
+    private void ApplyIncomingPreset(ServerPreset? preset)
+    {
+        var endpoint = IsPop3
+            ? preset?.Pop3 ?? new ServerEndpoint(ImapHostBox.Text, 995, ConnectionSecurity.SslOnConnect)
+            : preset?.Incoming ?? new ServerEndpoint(ImapHostBox.Text, 993, ConnectionSecurity.SslOnConnect);
+        ImapHostBox.Text = endpoint.Host;
+        ImapPortBox.Text = endpoint.Port.ToString(CultureInfo.InvariantCulture);
+        ImapSecurityBox.SelectedIndex = ToIndex(endpoint.Security);
+    }
+
     private void OnEmailLostFocus(object sender, RoutedEventArgs e)
     {
         var email = EmailBox.Text.Trim();
@@ -37,9 +60,7 @@ public partial class AddAccountWindow : Window
             NameBox.Text = email;
         }
 
-        ImapHostBox.Text = preset.Incoming.Host;
-        ImapPortBox.Text = preset.Incoming.Port.ToString(CultureInfo.InvariantCulture);
-        ImapSecurityBox.SelectedIndex = ToIndex(preset.Incoming.Security);
+        ApplyIncomingPreset(preset);
         SmtpHostBox.Text = preset.Outgoing.Host;
         SmtpPortBox.Text = preset.Outgoing.Port.ToString(CultureInfo.InvariantCulture);
         SmtpSecurityBox.SelectedIndex = ToIndex(preset.Outgoing.Security);
@@ -80,7 +101,7 @@ public partial class AddAccountWindow : Window
         {
             DisplayName = string.IsNullOrWhiteSpace(NameBox.Text) ? email : NameBox.Text.Trim(),
             EmailAddress = email,
-            IncomingProtocol = IncomingProtocol.Imap,
+            IncomingProtocol = IsPop3 ? IncomingProtocol.Pop3 : IncomingProtocol.Imap,
             Incoming = new ServerEndpoint(ImapHostBox.Text.Trim(), imapPort, ToSecurity(ImapSecurityBox.SelectedIndex)),
             Outgoing = new ServerEndpoint(SmtpHostBox.Text.Trim(), smtpPort, ToSecurity(SmtpSecurityBox.SelectedIndex)),
             UserName = string.IsNullOrWhiteSpace(UserBox.Text) ? email : UserBox.Text.Trim(),
@@ -121,6 +142,10 @@ public partial class AddAccountWindow : Window
 
         var saved = _services.Accounts.Add(account);
         _services.Credentials.Write(saved.CredentialKey, saved.UserName, password);
+        if (saved.IncomingProtocol == IncomingProtocol.Pop3)
+        {
+            Hayabumi.Core.Sync.Pop3.Pop3Synchronizer.EnsureFolders(_services.Folders, saved.Id);
+        }
         Log.Info($"アカウントを追加しました: {saved.EmailAddress}");
         DialogResult = true;
     }

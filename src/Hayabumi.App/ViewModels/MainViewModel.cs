@@ -249,7 +249,7 @@ public sealed partial class MainViewModel : ObservableObject
                 try
                 {
                     Func<Folder, bool>? filter = inboxOnly ? f => f.Role == FolderRole.Inbox : null;
-                    var result = await Task.Run(() => _services.CreateAccountSynchronizer().SyncAsync(node.Account, progress, filter, CancellationToken.None));
+                    var result = await Task.Run(() => _services.SyncAccountAsync(node.Account, progress, filter, CancellationToken.None));
                     added += result.Added;
                     errors.AddRange(result.Errors.Select(e => $"{node.EmailAddress}: {e}"));
                     newMail.AddRange(result.Folders

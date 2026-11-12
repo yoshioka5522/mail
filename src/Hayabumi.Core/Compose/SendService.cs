@@ -169,7 +169,13 @@ public sealed class SendService(
 
     private async Task SaveSentCopyAsync(Account account, MimeMessage message, CancellationToken cancellationToken)
     {
-        if (account.IncomingProtocol != IncomingProtocol.Imap || ServerSavesSentCopy(account))
+        if (account.IncomingProtocol == IncomingProtocol.Pop3)
+        {
+            await SaveLocalSentCopyAsync(account, message, cancellationToken).ConfigureAwait(false);
+            return;
+        }
+
+        if (ServerSavesSentCopy(account))
         {
             return;
         }
@@ -185,6 +191,38 @@ public sealed class SendService(
         buffer.Position = 0;
         await using var session = await sessions.ConnectAsync(account, cancellationToken).ConfigureAwait(false);
         await session.AppendAsync(sent, buffer, MessageFlags.Seen, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>POP3 のアカウントは、この PC の送信済みフォルダに保存する。</summary>
+    private async Task SaveLocalSentCopyAsync(Account account, MimeMessage message, CancellationToken cancellationToken)
+    {
+        if (messages.FindFolderIdByRole(account.Id, FolderRole.Sent) is not { } folderId)
+        {
+            return;
+        }
+
+        using var buffer = new MemoryStream();
+        await message.WriteToAsync(MessageBuilder.FormatOptions, buffer, cancellationToken).ConfigureAwait(false);
+        buffer.Position = 0;
+        var parsed = Mime.MessageParser.Parse(buffer);
+        buffer.Position = 0;
+        var path = await files.SaveAsync(account.Id, buffer, cancellationToken).ConfigureAwait(false);
+        var id = messages.InsertOne(account.Id, folderId, new NewMessage
+        {
+            MessageId = parsed.MessageId,
+            InReplyTo = parsed.InReplyTo,
+            Subject = parsed.Subject,
+            FromName = parsed.FromName,
+            FromAddress = parsed.FromAddress,
+            ToText = parsed.ToText,
+            CcText = parsed.CcText,
+            Date = parsed.Date,
+            Size = buffer.Length,
+            Flags = MessageFlags.Seen,
+            HasAttachments = parsed.HasAttachments,
+            Preview = parsed.Preview,
+        });
+        messages.SetBody(id, path, parsed.PlainText, parsed.Preview, parsed.HasAttachments);
     }
 
     private void MarkSource(Draft draft)

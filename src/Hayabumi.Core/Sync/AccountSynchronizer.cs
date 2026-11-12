@@ -99,7 +99,7 @@ public sealed class AccountSynchronizer(
 
     private async Task ReplayPendingAsync(IMailStoreSession session, long accountId, List<string> errors, CancellationToken cancellationToken)
     {
-        foreach (var group in pending.GetPending(accountId).GroupBy(o => o.FolderFullName))
+        foreach (var group in pending.GetPending(accountId).Where(o => o.Kind != PendingOperationKind.Pop3Delete).GroupBy(o => o.FolderFullName))
         {
             IRemoteFolder? remote = null;
             try

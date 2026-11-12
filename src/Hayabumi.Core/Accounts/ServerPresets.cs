@@ -5,7 +5,8 @@ public sealed record ServerPreset(
     ServerEndpoint Incoming,
     ServerEndpoint Outgoing,
     AuthMethod RecommendedAuth,
-    string? Note = null);
+    string? Note = null,
+    ServerEndpoint? Pop3 = null);
 
 /// <summary>
 /// 主要なメールサービスのサーバー設定。メールアドレスのドメインから選ぶ。
@@ -18,21 +19,24 @@ public static class ServerPresets
         new ServerEndpoint("imap.gmail.com", 993, ConnectionSecurity.SslOnConnect),
         new ServerEndpoint("smtp.gmail.com", 587, ConnectionSecurity.StartTls),
         AuthMethod.OAuthGoogle,
-        "Google アカウントの「アプリ パスワード」を使うと、パスワード認証で接続できます（2 段階認証が必要）。");
+        "Google アカウントの「アプリ パスワード」を使うと、パスワード認証で接続できます（2 段階認証が必要）。",
+        new ServerEndpoint("pop.gmail.com", 995, ConnectionSecurity.SslOnConnect));
 
     private static readonly ServerPreset s_microsoft = new(
         "Outlook.com / Microsoft 365",
         new ServerEndpoint("outlook.office365.com", 993, ConnectionSecurity.SslOnConnect),
         new ServerEndpoint("smtp.office365.com", 587, ConnectionSecurity.StartTls),
         AuthMethod.OAuthMicrosoft,
-        "Microsoft のアカウントはパスワード認証が廃止されているため、OAuth 対応（次の版）まで接続できません。");
+        "Microsoft のアカウントはパスワード認証が廃止されているため、［Microsoft でサインイン］を使ってください。",
+        new ServerEndpoint("outlook.office365.com", 995, ConnectionSecurity.SslOnConnect));
 
     private static readonly ServerPreset s_yahooJapan = new(
         "Yahoo!メール",
         new ServerEndpoint("imap.mail.yahoo.co.jp", 993, ConnectionSecurity.SslOnConnect),
         new ServerEndpoint("smtp.mail.yahoo.co.jp", 465, ConnectionSecurity.SslOnConnect),
         AuthMethod.Password,
-        "Yahoo!メールの設定で「IMAP/POP/SMTPアクセス」を有効にしてください。");
+        "Yahoo!メールの設定で「IMAP/POP/SMTPアクセス」を有効にしてください。",
+        new ServerEndpoint("pop.mail.yahoo.co.jp", 995, ConnectionSecurity.SslOnConnect));
 
     private static readonly ServerPreset s_icloud = new(
         "iCloud メール",
@@ -79,6 +83,7 @@ public static class ServerPresets
             new ServerEndpoint("imap." + domain, 993, ConnectionSecurity.SslOnConnect),
             new ServerEndpoint("smtp." + domain, 587, ConnectionSecurity.StartTls),
             AuthMethod.Password,
-            "一般的な設定を入力しました。プロバイダーの案内と異なる場合は修正してください。");
+            "一般的な設定を入力しました。プロバイダーの案内と異なる場合は修正してください。",
+            new ServerEndpoint("pop." + domain, 995, ConnectionSecurity.SslOnConnect));
     }
 }
