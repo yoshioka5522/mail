@@ -130,6 +130,44 @@ public sealed class MessageRepository(MailDatabase database)
         return connection.Scalar<int>("SELECT COUNT(*) FROM messages WHERE folder_id = $f;", ("$f", folderId));
     }
 
+    private static string UnifiedWhere(UnifiedView view)
+    {
+        // 同じメールが複数のフォルダにある場合（Gmail のラベルなど）は、ID の小さい 1 通だけを表示する
+        const string dedupe = """
+             AND NOT EXISTS (SELECT 1 FROM messages d WHERE d.account_id = m.account_id AND d.message_id = m.message_id
+                             AND m.message_id IS NOT NULL AND m.message_id <> '' AND d.id < m.id AND {0}
+                             AND d.folder_id IN (SELECT id FROM folders WHERE {1}))
+            """;
+        var inbox = $"role = {(int)FolderRole.Inbox}";
+        var unreadFolders = $"role NOT IN ({(int)FolderRole.Trash}, {(int)FolderRole.Junk}, {(int)FolderRole.Sent}, {(int)FolderRole.Drafts}, {(int)FolderRole.All})";
+        var flaggedFolders = $"role NOT IN ({(int)FolderRole.Trash}, {(int)FolderRole.Junk}, {(int)FolderRole.All})";
+        return view switch
+        {
+            UnifiedView.AllInboxes => $" WHERE m.folder_id IN (SELECT id FROM folders WHERE {inbox})",
+            UnifiedView.Unread => $" WHERE (m.flags & 1) = 0 AND m.folder_id IN (SELECT id FROM folders WHERE {unreadFolders})"
+                + string.Format(System.Globalization.CultureInfo.InvariantCulture, dedupe, "(d.flags & 1) = 0", unreadFolders),
+            UnifiedView.Flagged => $" WHERE (m.flags & 4) <> 0 AND m.folder_id IN (SELECT id FROM folders WHERE {flaggedFolders})"
+                + string.Format(System.Globalization.CultureInfo.InvariantCulture, dedupe, "(d.flags & 4) <> 0", flaggedFolders),
+            _ => throw new ArgumentOutOfRangeException(nameof(view)),
+        };
+    }
+
+    public int CountUnified(UnifiedView view)
+    {
+        using var connection = database.Open();
+        return connection.Scalar<int>("SELECT COUNT(*) FROM messages m" + UnifiedWhere(view) + ";");
+    }
+
+    /// <summary>すべてのアカウントをまとめた一覧の一部を、新しい順に取得する。</summary>
+    public IReadOnlyList<MessageListItem> GetUnifiedPage(UnifiedView view, int offset, int limit)
+    {
+        using var connection = database.Open();
+        using var command = connection.CreateCommand(
+            ListColumns + UnifiedWhere(view) + " ORDER BY m.date_utc DESC, m.id DESC LIMIT $limit OFFSET $offset;",
+            ("$limit", limit), ("$offset", offset));
+        return ReadList(command);
+    }
+
     /// <summary>新しい順に並べたメール一覧の一部を取得する（一覧の仮想化表示用）。</summary>
     public IReadOnlyList<MessageListItem> GetPage(long folderId, int offset, int limit)
     {

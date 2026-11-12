@@ -39,6 +39,8 @@ public sealed class PerformanceTests(ITestOutputHelper output) : IDisposable
                 FromAddress = $"user{i % 500}@example.jp",
                 ToText = "me@example.jp",
                 Date = start.AddMinutes(-i),
+                Flags = i % 3 == 0 ? MessageFlags.None : MessageFlags.Seen | (i % 50 == 0 ? MessageFlags.Flagged : MessageFlags.None),
+                MessageId = $"m{i}@example.jp",
                 Preview = $"いつもお世話になっております。{Pick(random)}と{Pick(random)}の件でご連絡いたしました。{Pick(random)}をご確認ください。",
             }));
         }
@@ -61,6 +63,15 @@ public sealed class PerformanceTests(ITestOutputHelper output) : IDisposable
         }
 
         Assert.True(pageMs < 300, $"ページの取得に {pageMs} ms かかりました");
+
+        foreach (var view in Enum.GetValues<UnifiedView>())
+        {
+            sw.Restart();
+            var first = _db.Messages.GetUnifiedPage(view, 0, 100);
+            var unifiedCount = _db.Messages.CountUnified(view);
+            output.WriteLine($"統合ビュー {view}: {unifiedCount:N0} 件, 先頭ページと件数 {sw.ElapsedMilliseconds} ms");
+            Assert.True(sw.ElapsedMilliseconds < 1000, $"統合ビュー {view} に {sw.ElapsedMilliseconds} ms かかりました");
+        }
     }
 
     private static string Pick(Random random) => s_words[random.Next(s_words.Length)];

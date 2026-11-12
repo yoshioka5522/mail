@@ -93,3 +93,16 @@ public sealed record MessageListItem
     public bool IsFlagged => (Flags & MessageFlags.Flagged) != 0;
     public string Sender => string.IsNullOrWhiteSpace(FromName) ? FromAddress : FromName;
 }
+
+/// <summary>すべてのアカウントをまとめた表示。</summary>
+public enum UnifiedView
+{
+    /// <summary>すべての受信トレイ。</summary>
+    AllInboxes,
+
+    /// <summary>未読（ゴミ箱・迷惑メール・送信済み・下書きを除く）。</summary>
+    Unread,
+
+    /// <summary>フラグ付き（ゴミ箱・迷惑メールを除く）。</summary>
+    Flagged,
+}

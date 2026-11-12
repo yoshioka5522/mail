@@ -150,6 +150,14 @@ internal static class SchemaMigrations
         ALTER TABLE messages ADD COLUMN pop3_uidl TEXT;
         CREATE INDEX ix_messages_pop3_uidl ON messages (folder_id, pop3_uidl) WHERE pop3_uidl IS NOT NULL;
         """,
+
+        // 4: すべてのアカウントをまとめた表示（統合受信トレイ・未読・フラグ付き）を新しい順に速く出すため
+        """
+        CREATE INDEX ix_messages_date ON messages (date_utc DESC, id DESC);
+        CREATE INDEX ix_messages_unread_date ON messages (date_utc DESC, id DESC) WHERE (flags & 1) = 0;
+        CREATE INDEX ix_messages_flagged_date ON messages (date_utc DESC, id DESC) WHERE (flags & 4) <> 0;
+        CREATE INDEX ix_messages_account_message_id ON messages (account_id, message_id);
+        """,
     ];
 
     public static int LatestVersion => s_migrations.Length;
