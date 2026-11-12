@@ -255,3 +255,44 @@ public class ServerPresetTests
         Assert.Null(Hayabumi.Core.Accounts.ServerPresets.Find(email));
     }
 }
+
+public sealed class CopiesTests : IDisposable
+{
+    private readonly TestDatabase _db = new();
+
+    public void Dispose() => _db.Dispose();
+
+    [Fact]
+    public async Task Reading_in_inbox_marks_copies_in_other_folders_and_flush_pushes_to_server()
+    {
+        var server = new FakeMailServer();
+        var account = _db.AddAccount();
+        var inbox = server.AddFolder("INBOX", FolderRole.Inbox);
+        var all = server.AddFolder("[Gmail]/すべてのメール", FolderRole.All);
+        var unread = server.AddFolder("未読");
+        var message = FakeMessage.Create("同じメール");
+        foreach (var folder in new[] { inbox, all, unread })
+        {
+            folder.Add(new FakeMessage(message.Header with { MessageId = "same@example.jp" }, message.Raw));
+        }
+
+        var synchronizer = new AccountSynchronizer(server, _db.Folders, _db.Messages, _db.Pending, _db.Files, new SyncOptions());
+        await synchronizer.SyncAsync(account, null, TestContext.Current.CancellationToken);
+        var localInbox = _db.Folders.GetByAccount(account.Id).Single(f => f.Role == FolderRole.Inbox);
+        var item = _db.Messages.GetPage(localInbox.Id, 0, 1)[0];
+
+        var actions = new MailActions(_db.Folders, _db.Messages, _db.Pending, _db.Files);
+        actions.MarkRead([item], read: true);
+
+        foreach (var folder in _db.Folders.GetByAccount(account.Id))
+        {
+            Assert.False(_db.Messages.GetPage(folder.Id, 0, 1)[0].IsUnread);
+            Assert.Equal(0, _db.Folders.Get(folder.Id)!.UnreadCount);
+        }
+
+        var errors = await synchronizer.FlushPendingAsync(account, TestContext.Current.CancellationToken);
+        Assert.Empty(errors);
+        Assert.Empty(_db.Pending.GetPending(account.Id));
+        Assert.All(new[] { inbox, all, unread }, f => Assert.Equal(MessageFlags.Seen, f.Messages.Values.Single().Flags));
+    }
+}

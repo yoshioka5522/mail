@@ -81,6 +81,24 @@ public sealed class AccountSynchronizer(
         return new AccountSyncResult(account.Id, results, errors);
     }
 
+    /// <summary>
+    /// 保留中の操作（既読・移動・削除など）だけをすぐにサーバーへ反映する。
+    /// 定期的な同期を待たずに反映することで、ほかの端末やフォルダとのずれを小さくする。
+    /// </summary>
+    public async Task<IReadOnlyList<string>> FlushPendingAsync(Account account, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(account);
+        var errors = new List<string>();
+        if (account.IncomingProtocol != IncomingProtocol.Imap || pending.GetPending(account.Id).Count == 0)
+        {
+            return errors;
+        }
+
+        await using var session = await sessionFactory.ConnectAsync(account, cancellationToken).ConfigureAwait(false);
+        await ReplayPendingAsync(session, account.Id, errors, cancellationToken).ConfigureAwait(false);
+        return errors;
+    }
+
     private async Task<IReadOnlyList<Folder>> SyncFolderListAsync(IMailStoreSession session, long accountId, CancellationToken cancellationToken)
     {
         var remoteFolders = await session.GetFoldersAsync(cancellationToken).ConfigureAwait(false);

@@ -59,6 +59,7 @@ public sealed partial class MainViewModel : ObservableObject
     private long? _undoOutboxId;
     private readonly DispatcherTimer _outboxTimer;
     private readonly DispatcherTimer _undoTimer;
+    private readonly DispatcherTimer _flushTimer;
 
     public MainViewModel(AppServices services)
     {
@@ -73,6 +74,12 @@ public sealed partial class MainViewModel : ObservableObject
             _undoTimer.Stop();
             IsUndoVisible = false;
             _undoOutboxId = null;
+        };
+        _flushTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1.5) };
+        _flushTimer.Tick += async (_, _) =>
+        {
+            _flushTimer.Stop();
+            await FlushPendingAsync();
         };
         _searchDebounce = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(300) };
         _searchDebounce.Tick += (_, _) =>
@@ -544,6 +551,8 @@ public sealed partial class MainViewModel : ObservableObject
         {
             item.IsFlagged = flag;
         }
+
+        RefreshFolderCounts();
     }
 
     [RelayCommand]
@@ -799,14 +808,52 @@ public sealed partial class MainViewModel : ObservableObject
         }
     }
 
-    private void RefreshFolderCounts()
+    /// <summary>既読・移動などの操作を、少し待ってからまとめてサーバーへ反映する。</summary>
+    private void SchedulePendingFlush()
     {
-        if (SelectedFolder is null)
+        _flushTimer.Stop();
+        _flushTimer.Start();
+    }
+
+    private async Task FlushPendingAsync()
+    {
+        if (!await _services.SyncLock.WaitAsync(0))
         {
+            // 同期中なら、同期の最初に反映される
             return;
         }
 
-        foreach (var node in Accounts.Where(a => a.Account.Id == SelectedFolder.Folder.AccountId))
+        try
+        {
+            foreach (var node in Accounts.ToList())
+            {
+                try
+                {
+                    var errors = await Task.Run(() => _services.CreateAccountSynchronizer().FlushPendingAsync(node.Account));
+                    if (errors.Count > 0)
+                    {
+                        StatusText = $"{node.EmailAddress}: {errors[0]}";
+                    }
+                }
+                catch (Exception ex)
+                {
+                    // オフラインなど。次回の同期で反映する
+                    Log.Info($"操作をサーバーに反映できませんでした（{node.EmailAddress}）: {ex.Message}");
+                }
+            }
+        }
+        finally
+        {
+            _services.SyncLock.Release();
+        }
+    }
+
+    private void RefreshFolderCounts()
+    {
+        SchedulePendingFlush();
+
+        // 同じメールがほかのフォルダ（統合ビューを含む）にもあるため、すべてのアカウントの件数を数え直す
+        foreach (var node in Accounts)
         {
             RefreshFolders(node);
         }

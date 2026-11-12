@@ -102,6 +102,28 @@ public sealed class MessageRepository(MailDatabase database)
             ("$a", accountId), ("$r", (int)role));
     }
 
+    /// <summary>
+    /// 同じメール（同じアカウントで Message-ID が同じ）が、ほかのフォルダにもあれば返す。
+    /// Gmail のラベルのように、1 通が複数のフォルダに現れる場合に既読などをそろえるため。
+    /// </summary>
+    public IReadOnlyList<MessageListItem> FindCopies(IReadOnlyCollection<long> ids)
+    {
+        ArgumentNullException.ThrowIfNull(ids);
+        if (ids.Count == 0)
+        {
+            return [];
+        }
+
+        using var connection = database.Open();
+        var idList = string.Join(',', ids);
+        using var command = connection.CreateCommand(
+            ListColumns + $"""
+             JOIN messages s ON s.account_id = m.account_id AND s.message_id = m.message_id
+            WHERE s.id IN ({idList}) AND m.id NOT IN ({idList}) AND m.message_id IS NOT NULL AND m.message_id <> '';
+            """);
+        return ReadList(command);
+    }
+
     public int Count(long folderId)
     {
         using var connection = database.Open();

@@ -16,6 +16,8 @@ public sealed class MailActions(FolderRepository folders, MessageRepository mess
             return;
         }
 
+        // ほかのフォルダにある同じメールにも反映する（受信トレイで読んだら、ほかのフォルダでも既読になるように）
+        items = [.. items.Concat(messages.FindCopies([.. items.Select(i => i.Id)])).DistinctBy(i => i.Id)];
         messages.ChangeFlags([.. items.Select(i => i.Id)], flags, add);
         foreach (var group in items.GroupBy(i => i.FolderId))
         {
