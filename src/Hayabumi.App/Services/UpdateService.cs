@@ -11,13 +11,13 @@ public enum UpdateCheckResult
     UpToDate,
     /// <summary>更新をダウンロードした。再起動すると適用される。</summary>
     Downloaded,
-    /// <summary>非公開リポジトリのため、読み取り用トークンの設定が必要。</summary>
+    /// <summary>リポジトリが非公開で、読み取り用トークンが設定されていない。</summary>
     TokenRequired,
 }
 
 /// <summary>
 /// GitHub Releases から更新を確認・ダウンロードする。
-/// 現在は非公開リポジトリのため、設定画面で入力した読み取り専用トークンを使う（exe には埋め込まない）。
+/// 公開リポジトリならトークンは不要。非公開の場合は、設定画面で入力した読み取り専用トークンを使う（exe には埋め込まない）。
 /// </summary>
 public sealed class UpdateService(ICredentialStore credentials)
 {
@@ -47,18 +47,22 @@ public sealed class UpdateService(ICredentialStore credentials)
 
     public async Task<UpdateCheckResult> CheckAndDownloadAsync(CancellationToken cancellationToken = default)
     {
-        if (!HasToken)
-        {
-            return CreateManager() is null ? UpdateCheckResult.NotInstalled : UpdateCheckResult.TokenRequired;
-        }
-
         var manager = CreateManager();
         if (manager is null)
         {
             return UpdateCheckResult.NotInstalled;
         }
 
-        var update = await manager.CheckForUpdatesAsync().ConfigureAwait(false);
+        // 公開リポジトリならトークンなしで取得できる。非公開でトークンがない場合は取得に失敗する
+        Velopack.UpdateInfo? update;
+        try
+        {
+            update = await manager.CheckForUpdatesAsync().ConfigureAwait(false);
+        }
+        catch (Exception) when (!HasToken)
+        {
+            return UpdateCheckResult.TokenRequired;
+        }
         if (update is null)
         {
             return UpdateCheckResult.UpToDate;
