@@ -52,6 +52,20 @@ public static partial class MessageParser
         };
     }
 
+    /// <summary>
+    /// サーバーから取得したヘッダーだけを解析する（本文なし）。
+    /// 生のバイト列から解析し直すことで、charset 指定のない 8bit のヘッダーも推定して復号する。
+    /// </summary>
+    public static ParsedMessage ParseHeaders(HeaderList headers)
+    {
+        ArgumentNullException.ThrowIfNull(headers);
+        using var buffer = new MemoryStream();
+        headers.WriteTo(buffer);
+        buffer.Write("\r\n"u8);
+        buffer.Position = 0;
+        return Parse(Load(buffer));
+    }
+
     public static string FormatAddresses(InternetAddressList list)
     {
         ArgumentNullException.ThrowIfNull(list);

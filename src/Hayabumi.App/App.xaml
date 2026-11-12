@@ -10,10 +10,6 @@
         <SolidColorBrush x:Key="PaneBrush" Color="#F7F8FA" />
         <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
 
-        <Style TargetType="Window">
-            <Setter Property="FontFamily" Value="{StaticResource UiFont}" />
-            <Setter Property="FontSize" Value="13" />
-        </Style>
         <Style TargetType="Button">
             <Setter Property="Padding" Value="10,4" />
             <Setter Property="Margin" Value="0,0,6,0" />

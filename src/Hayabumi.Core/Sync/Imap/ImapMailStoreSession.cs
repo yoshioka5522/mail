@@ -145,6 +145,12 @@ internal sealed class ImapRemoteFolder(ImapClient client, IMailFolder folder) : 
 {
     private const string ForwardedKeyword = "$Forwarded";
 
+    private static readonly HeaderSet s_summaryHeaders = new(
+    [
+        HeaderId.From, HeaderId.To, HeaderId.Cc, HeaderId.Subject, HeaderId.Date,
+        HeaderId.MessageId, HeaderId.InReplyTo, HeaderId.References,
+    ]);
+
     public string FullName => folder.FullName;
 
     public uint UidValidity => folder.UidValidity;
@@ -164,7 +170,9 @@ internal sealed class ImapRemoteFolder(ImapClient client, IMailFolder folder) : 
 
     public async Task<IReadOnlyList<NewMessage>> FetchHeadersAsync(IReadOnlyList<uint> uids, bool includePreview, CancellationToken cancellationToken)
     {
-        var items = MessageSummaryItems.UniqueId | MessageSummaryItems.Envelope | MessageSummaryItems.Flags
+        // ENVELOPE は 8bit のヘッダー（charset 指定のない Shift_JIS の件名など）を正しく復号できないため、
+        // 必要なヘッダーをそのまま取得して MessageParser で解析する
+        var items = MessageSummaryItems.UniqueId | MessageSummaryItems.Flags
             | MessageSummaryItems.Size | MessageSummaryItems.BodyStructure | MessageSummaryItems.InternalDate;
         if (includePreview)
         {
@@ -176,7 +184,8 @@ internal sealed class ImapRemoteFolder(ImapClient client, IMailFolder folder) : 
             items |= MessageSummaryItems.ModSeq;
         }
 
-        var summaries = await folder.FetchAsync(ToUniqueIds(uids), new FetchRequest(items), cancellationToken).ConfigureAwait(false);
+        var request = new FetchRequest(items) { Headers = s_summaryHeaders };
+        var summaries = await folder.FetchAsync(ToUniqueIds(uids), request, cancellationToken).ConfigureAwait(false);
         return [.. summaries.Select(ToNewMessage)];
     }
 
@@ -259,19 +268,20 @@ internal sealed class ImapRemoteFolder(ImapClient client, IMailFolder folder) : 
 
     private static NewMessage ToNewMessage(IMessageSummary s)
     {
-        var envelope = s.Envelope;
-        var from = envelope?.From.Mailboxes.FirstOrDefault();
-        var date = envelope?.Date ?? s.InternalDate ?? DateTimeOffset.UnixEpoch;
+        var headers = s.Headers is null ? null : MessageParser.ParseHeaders(s.Headers);
+        var date = headers is not null && headers.Date != DateTimeOffset.UnixEpoch
+            ? headers.Date
+            : s.InternalDate ?? DateTimeOffset.UnixEpoch;
         return new NewMessage
         {
             Uid = s.UniqueId.Id,
-            MessageId = envelope?.MessageId,
-            InReplyTo = envelope?.InReplyTo,
-            Subject = envelope?.Subject ?? string.Empty,
-            FromName = from?.Name ?? string.Empty,
-            FromAddress = from?.Address ?? string.Empty,
-            ToText = envelope is null ? string.Empty : MessageParser.FormatAddresses(envelope.To),
-            CcText = envelope is null ? string.Empty : MessageParser.FormatAddresses(envelope.Cc),
+            MessageId = headers?.MessageId,
+            InReplyTo = headers?.InReplyTo,
+            Subject = headers?.Subject ?? string.Empty,
+            FromName = headers?.FromName ?? string.Empty,
+            FromAddress = headers?.FromAddress ?? string.Empty,
+            ToText = headers?.ToText ?? string.Empty,
+            CcText = headers?.CcText ?? string.Empty,
             Date = date,
             Size = s.Size ?? 0,
             Flags = ToFlags(s.Flags, s.Keywords),

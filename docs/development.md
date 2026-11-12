@@ -45,6 +45,14 @@ dotnet test tests/Hayabumi.Core.Tests
 HAYABUMI_PERF_COUNT=500000 dotnet test tests/Hayabumi.Core.Tests --filter FullyQualifiedName~PerformanceTests --logger "console;verbosity=detailed"
 ```
 
+実際の IMAP サーバーを相手にした結合テスト（テスト用サーバーのメールボックスを消去して使うので注意）:
+
+```bash
+HAYABUMI_IMAP_TEST=127.0.0.1:10143:ユーザー名:パスワード dotnet test tests/Hayabumi.Core.Tests --filter FullyQualifiedName~ImapIntegrationTests
+```
+
+環境変数を設定しない場合、このテストはスキップされます。開発中は Dovecot（暗号化なし、ポート 10143）で確認しています。
+
 画面（`Hayabumi.App`）は Linux でもビルドできますが、実行は Windows のみです。
 
 ## リリース
