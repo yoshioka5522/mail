@@ -5,7 +5,12 @@
         Title="アカウントの追加" Width="560" SizeToContent="Height" ResizeMode="NoResize"
         WindowStartupLocation="CenterOwner" ShowInTaskbar="False">
     <StackPanel Margin="20">
-        <TextBlock Text="Gmail・Outlook.com・Microsoft 365 は、サインインで追加できます。" Margin="0,0,0,8" />
+        <TextBlock Text="Outlook.com・Microsoft 365 は、サインインで追加できます。" Margin="0,0,0,4" />
+        <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="{StaticResource SubtleBrush}" Margin="0,0,0,8">
+            「Google でサインイン」は、開発者が登録した利用者だけが使えます。それ以外の Gmail は、下の欄にメールアドレスと
+            <Hyperlink NavigateUri="https://myaccount.google.com/apppasswords" RequestNavigate="OnRequestNavigate">アプリ パスワード</Hyperlink>
+            （2 段階認証の設定が必要）を入力して追加してください。
+        </TextBlock>
         <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
             <Button x:Name="GoogleButton" Content="Google でサインイン" Click="OnGoogleClick" Padding="14,6" />
             <Button x:Name="MicrosoftButton" Content="Microsoft でサインイン" Click="OnMicrosoftClick" Padding="14,6" />

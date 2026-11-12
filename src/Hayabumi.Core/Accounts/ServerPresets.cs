@@ -19,7 +19,7 @@ public static class ServerPresets
         new ServerEndpoint("imap.gmail.com", 993, ConnectionSecurity.SslOnConnect),
         new ServerEndpoint("smtp.gmail.com", 587, ConnectionSecurity.StartTls),
         AuthMethod.OAuthGoogle,
-        "Google アカウントの「アプリ パスワード」を使うと、パスワード認証で接続できます（2 段階認証が必要）。",
+        "パスワード欄には、Google アカウントで発行した「アプリ パスワード」（16 文字）を入力してください（2 段階認証の設定が必要）。",
         new ServerEndpoint("pop.gmail.com", 995, ConnectionSecurity.SslOnConnect));
 
     private static readonly ServerPreset s_microsoft = new(

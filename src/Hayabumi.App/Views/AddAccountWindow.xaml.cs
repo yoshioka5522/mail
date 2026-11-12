@@ -22,6 +22,12 @@ public partial class AddAccountWindow : Window
 
     private bool IsPop3 => Pop3Radio.IsChecked == true;
 
+    private void OnRequestNavigate(object sender, System.Windows.Navigation.RequestNavigateEventArgs e)
+    {
+        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(e.Uri.AbsoluteUri) { UseShellExecute = true });
+        e.Handled = true;
+    }
+
     private void OnProtocolChanged(object sender, RoutedEventArgs e)
     {
         if (Pop3Note is null)
