@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Windows;
 using Hayabumi.App.Services;
 using Hayabumi.Core.Accounts;
+using Hayabumi.Core.Security.OAuth;
 using MailKit.Security;
 
 namespace Hayabumi.App.Views;
@@ -154,6 +155,84 @@ public partial class AddAccountWindow : Window
     {
         Busy.Visibility = busy ? Visibility.Visible : Visibility.Collapsed;
         OkButton.IsEnabled = !busy;
+        GoogleButton.IsEnabled = !busy;
+        MicrosoftButton.IsEnabled = !busy;
+    }
+
+    private async void OnGoogleClick(object sender, RoutedEventArgs e) => await SignInAsync(AuthMethod.OAuthGoogle);
+
+    private async void OnMicrosoftClick(object sender, RoutedEventArgs e) => await SignInAsync(AuthMethod.OAuthMicrosoft);
+
+    /// <summary>ブラウザーでサインインしてアカウントを追加する（パスワードはアプリに渡らない）。</summary>
+    private async Task SignInAsync(AuthMethod method)
+    {
+        ErrorText.Visibility = Visibility.Collapsed;
+        var provider = _services.OAuth.Find(method);
+        if (provider is null)
+        {
+            ShowError("サインインに使うクライアント ID が設定されていません。［ツール］→［OAuth の設定］で設定してください。");
+            return;
+        }
+
+        SetBusy(true);
+        _connecting = new CancellationTokenSource();
+        try
+        {
+            var hint = EmailBox.Text.Contains('@', StringComparison.Ordinal) ? EmailBox.Text.Trim() : null;
+            var result = await _services.OAuthClient.SignInAsync(
+                provider,
+                hint,
+                uri => System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(uri.AbsoluteUri) { UseShellExecute = true }),
+                _connecting.Token);
+
+            var email = result.Email ?? hint;
+            if (string.IsNullOrEmpty(email))
+            {
+                ShowError("メールアドレスを取得できませんでした。メールアドレスを入力してから、もう一度サインインしてください。");
+                return;
+            }
+
+            var preset = method == AuthMethod.OAuthGoogle ? ServerPresets.Find("x@gmail.com")! : ServerPresets.Find("x@outlook.com")!;
+            var account = new Account
+            {
+                DisplayName = string.IsNullOrWhiteSpace(result.Name) ? email : result.Name,
+                EmailAddress = email,
+                IncomingProtocol = IncomingProtocol.Imap,
+                Incoming = preset.Incoming,
+                Outgoing = preset.Outgoing,
+                UserName = email,
+                AuthMethod = method,
+            };
+
+            await Task.Run(() => AppServices.TestConnectionAsync(account, result.Tokens.AccessToken, _connecting.Token));
+            var saved = _services.Accounts.Add(account);
+            AccountSecretProvider.SaveTokens(_services.Credentials, saved, result.Tokens);
+            Log.Info($"アカウントを追加しました（{provider.Name} でサインイン）: {saved.EmailAddress}");
+            DialogResult = true;
+        }
+        catch (OperationCanceledException)
+        {
+            if (IsLoaded)
+            {
+                ShowError("サインインがタイムアウトしました。もう一度お試しください。");
+            }
+        }
+        catch (OAuthException ex)
+        {
+            ShowError(ex.Message);
+        }
+        catch (Exception ex)
+        {
+            Log.Error("サインインでのアカウント追加に失敗しました", ex);
+            ShowError($"サインインはできましたが、メールサーバーに接続できませんでした。\n（{ex.Message}）");
+        }
+        finally
+        {
+            if (IsLoaded)
+            {
+                SetBusy(false);
+            }
+        }
     }
 
     private void ShowError(string message)

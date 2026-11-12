@@ -44,8 +44,18 @@ jobs:
       - name: Test
         run: dotnet test tests/Hayabumi.Core.Tests -c Release
 
+      # OAuth のクライアント ID はリポジトリの「変数」、Google のクライアント シークレットは「シークレット」から埋め込む
       - name: Publish
-        run: dotnet publish src/Hayabumi.App -c Release -o publish -p:Version=${{ env.VERSION }}
+        env:
+          OAUTH_GOOGLE_CLIENT_ID: ${{ vars.OAUTH_GOOGLE_CLIENT_ID }}
+          OAUTH_GOOGLE_CLIENT_SECRET: ${{ secrets.OAUTH_GOOGLE_CLIENT_SECRET }}
+          OAUTH_MICROSOFT_CLIENT_ID: ${{ vars.OAUTH_MICROSOFT_CLIENT_ID }}
+        run: >
+          dotnet publish src/Hayabumi.App -c Release -o publish
+          -p:Version=${{ env.VERSION }}
+          -p:OAuthGoogleClientId="$env:OAUTH_GOOGLE_CLIENT_ID"
+          -p:OAuthGoogleClientSecret="$env:OAUTH_GOOGLE_CLIENT_SECRET"
+          -p:OAuthMicrosoftClientId="$env:OAUTH_MICROSOFT_CLIENT_ID"
 
       - name: Install Velopack CLI
         run: dotnet tool install -g vpk --version 1.2.161

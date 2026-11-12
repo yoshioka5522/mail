@@ -39,6 +39,7 @@
             </MenuItem>
             <MenuItem Header="ツール(_T)">
                 <MenuItem Header="更新用トークンの設定(_T)…" Click="OnUpdateTokenClick" />
+                <MenuItem Header="OAuth の設定(_A)…" Click="OnOAuthSettingsClick" />
                 <MenuItem Header="データフォルダを開く(_O)" Click="OnOpenDataFolderClick" />
             </MenuItem>
             <MenuItem Header="ヘルプ(_H)">

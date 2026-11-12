@@ -1,8 +1,10 @@
 using System.IO;
+using System.Net.Http;
 using Hayabumi.Core.Accounts;
 using Hayabumi.Core.Compose;
 using Hayabumi.Core.Contacts;
 using Hayabumi.Core.Security;
+using Hayabumi.Core.Security.OAuth;
 using Hayabumi.Core.Storage;
 using Hayabumi.Core.Sync;
 using Hayabumi.Core.Sync.Imap;
@@ -24,7 +26,11 @@ public sealed class AppServices : IDisposable
         Pending = new PendingOperationRepository(Database);
         Files = new MessageFileStore(location.Root);
         Credentials = new WindowsCredentialStore();
-        var secrets = new StoredPasswordSecretProvider(Credentials);
+        Settings = new SettingsRepository(Database);
+        OAuth = new OAuthSettings(Settings, Credentials);
+        OAuthClient = new OAuthClient(Http);
+        var secrets = new AccountSecretProvider(Credentials, OAuth, OAuthClient);
+        _secrets = secrets;
         Sessions = new ImapSessionFactory(secrets);
         Pop3Sessions = new Pop3SessionFactory(secrets);
         Actions = new MailActions(Folders, Messages, Pending, Files);
@@ -34,6 +40,14 @@ public sealed class AppServices : IDisposable
         Contacts = new ContactRepository(Database);
         Send = new SendService(Accounts, Messages, Drafts, Outbox, Files, new SmtpMailSender(secrets), Sessions, Actions, Contacts);
     }
+
+    private readonly AccountSecretProvider _secrets;
+
+    public static HttpClient Http { get; } = new() { Timeout = TimeSpan.FromSeconds(60) };
+
+    public SettingsRepository Settings { get; }
+    public OAuthSettings OAuth { get; }
+    public OAuthClient OAuthClient { get; }
 
     public AppDataLocation Location { get; }
     public MailDatabase Database { get; }
@@ -103,6 +117,7 @@ public sealed class AppServices : IDisposable
     public void Dispose()
     {
         SyncLock.Dispose();
+        _secrets.Dispose();
         Send.Dispose();
         Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
     }

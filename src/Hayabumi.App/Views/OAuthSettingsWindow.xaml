@@ -1,0 +1,43 @@
+<Window x:Class="Hayabumi.App.Views.OAuthSettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        FontFamily="{StaticResource UiFont}" FontSize="13"
+        Title="OAuth の設定" Width="560" SizeToContent="Height" ResizeMode="NoResize"
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="False">
+    <StackPanel Margin="20">
+        <TextBlock TextWrapping="Wrap" Margin="0,0,0,12">
+            「Google でサインイン」「Microsoft でサインイン」に使う、アプリの登録情報です。
+            通常は変更する必要はありません。空欄にすると既定の値を使います。
+        </TextBlock>
+        <GroupBox Header="Google（Google Cloud のデスクトップ アプリ）" Padding="8">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="150" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <Label Content="クライアント ID" />
+                <TextBox x:Name="GoogleIdBox" Grid.Column="1" Margin="0,2" />
+                <Label Grid.Row="1" Content="クライアント シークレット" />
+                <PasswordBox x:Name="GoogleSecretBox" Grid.Row="1" Grid.Column="1" Margin="0,2" Padding="4,3" />
+            </Grid>
+        </GroupBox>
+        <GroupBox Header="Microsoft（Microsoft Entra ID のアプリ登録）" Padding="8" Margin="0,8,0,0">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="150" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Label Content="アプリケーション ID" />
+                <TextBox x:Name="MicrosoftIdBox" Grid.Column="1" Margin="0,2" />
+            </Grid>
+        </GroupBox>
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
+            <Button Content="保存" IsDefault="True" Click="OnSaveClick" />
+            <Button Content="キャンセル" IsCancel="True" Margin="0" />
+        </StackPanel>
+    </StackPanel>
+</Window>

@@ -335,6 +335,9 @@ public partial class MainWindow : Window
         dialog.ShowDialog();
     }
 
+    private void OnOAuthSettingsClick(object sender, RoutedEventArgs e)
+        => new OAuthSettingsWindow(_services.OAuth) { Owner = this }.ShowDialog();
+
     private void OnOpenDataFolderClick(object sender, RoutedEventArgs e)
         => Process.Start(new ProcessStartInfo("explorer.exe", $"\"{_services.Location.Root}\"") { UseShellExecute = true });
 

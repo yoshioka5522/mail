@@ -38,6 +38,13 @@
     <PackageReference Include="Velopack" />
   </ItemGroup>
 
+  <!-- OAuth のクライアント ID（ビルド時に -p:OAuthGoogleClientId=... などで指定する。秘密ではない） -->
+  <ItemGroup>
+    <AssemblyMetadata Include="OAuthGoogleClientId" Value="$(OAuthGoogleClientId)" />
+    <AssemblyMetadata Include="OAuthGoogleClientSecret" Value="$(OAuthGoogleClientSecret)" />
+    <AssemblyMetadata Include="OAuthMicrosoftClientId" Value="$(OAuthMicrosoftClientId)" />
+  </ItemGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\Hayabumi.Core\Hayabumi.Core.csproj" />
   </ItemGroup>

@@ -5,7 +5,13 @@
         Title="アカウントの追加" Width="560" SizeToContent="Height" ResizeMode="NoResize"
         WindowStartupLocation="CenterOwner" ShowInTaskbar="False">
     <StackPanel Margin="20">
-        <TextBlock Text="メールアカウントの情報を入力してください。" Margin="0,0,0,12" />
+        <TextBlock Text="Gmail・Outlook.com・Microsoft 365 は、サインインで追加できます。" Margin="0,0,0,8" />
+        <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+            <Button x:Name="GoogleButton" Content="Google でサインイン" Click="OnGoogleClick" Padding="14,6" />
+            <Button x:Name="MicrosoftButton" Content="Microsoft でサインイン" Click="OnMicrosoftClick" Padding="14,6" />
+        </StackPanel>
+        <Separator Margin="0,8" />
+        <TextBlock Text="そのほかのメール（プロバイダー、独自ドメインなど）は、情報を入力してください。" Margin="0,4,0,12" TextWrapping="Wrap" />
         <Grid>
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="140" />
