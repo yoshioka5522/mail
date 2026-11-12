@@ -51,7 +51,15 @@ HAYABUMI_PERF_COUNT=500000 dotnet test tests/Hayabumi.Core.Tests --filter FullyQ
 HAYABUMI_IMAP_TEST=127.0.0.1:10143:ユーザー名:パスワード dotnet test tests/Hayabumi.Core.Tests --filter FullyQualifiedName~ImapIntegrationTests
 ```
 
-環境変数を設定しない場合、このテストはスキップされます。開発中は Dovecot（暗号化なし、ポート 10143）で確認しています。
+実サーバーを使うテストは、次の環境変数を設定したときだけ実行されます（設定しなければスキップ）。
+
+| 環境変数 | 例 | 内容 |
+|---|---|---|
+| `HAYABUMI_IMAP_TEST` | `127.0.0.1:10143:user:pass` | IMAP（暗号化なし） |
+| `HAYABUMI_POP3_TEST` | `127.0.0.1:10110:user:pass` | POP3（暗号化なし。IMAP と同じメールボックス） |
+| `HAYABUMI_SMTP_TEST` | `127.0.0.1:10025:/tmp/smtp-out` | 受信内容をフォルダに保存するテスト用 SMTP サーバー |
+
+開発中は Dovecot（IMAP・POP3）と、Python の aiosmtpd で作った SMTP サーバーで確認しています。
 
 画面（`Hayabumi.App`）は Linux でもビルドできますが、実行は Windows のみです。
 
