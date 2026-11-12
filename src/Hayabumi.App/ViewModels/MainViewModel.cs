@@ -15,8 +15,6 @@ namespace Hayabumi.App.ViewModels;
 
 public sealed partial class MainViewModel : ObservableObject
 {
-    private static readonly TimeSpan s_autoSyncInterval = TimeSpan.FromMinutes(5);
-
     private readonly AppServices _services;
     private readonly DispatcherTimer _autoSyncTimer;
     private readonly DispatcherTimer _searchDebounce;
@@ -65,7 +63,7 @@ public sealed partial class MainViewModel : ObservableObject
     public MainViewModel(AppServices services)
     {
         _services = services;
-        _autoSyncTimer = new DispatcherTimer { Interval = s_autoSyncInterval };
+        _autoSyncTimer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(services.AppSettings.SyncIntervalMinutes) };
         _autoSyncTimer.Tick += async (_, _) => await SyncAsync();
         _outboxTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
         _outboxTimer.Tick += async (_, _) => await ProcessOutboxAsync();
@@ -133,6 +131,14 @@ public sealed partial class MainViewModel : ObservableObject
         _autoSyncTimer.Start();
         _outboxTimer.Start();
         _ = CheckUpdatesQuietlyAsync();
+    }
+
+    /// <summary>設定画面で変えた値を反映する。</summary>
+    public void ApplySettings()
+    {
+        _autoSyncTimer.Interval = TimeSpan.FromMinutes(_services.AppSettings.SyncIntervalMinutes);
+        _services.Send.UndoDelay = TimeSpan.FromSeconds(_services.AppSettings.UndoSendSeconds);
+        LoadAccounts();
     }
 
     public void LoadAccounts()

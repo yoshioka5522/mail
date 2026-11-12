@@ -28,6 +28,7 @@ public sealed class AppServices : IDisposable
         Credentials = new WindowsCredentialStore();
         Settings = new SettingsRepository(Database);
         OAuth = new OAuthSettings(Settings, Credentials);
+        AppSettings = new AppSettings(Settings);
         OAuthClient = new OAuthClient(Http);
         var secrets = new AccountSecretProvider(Credentials, OAuth, OAuthClient);
         _secrets = secrets;
@@ -39,7 +40,10 @@ public sealed class AppServices : IDisposable
         Drafts = new DraftRepository(Database, location.Root);
         Outbox = new OutboxRepository(Database);
         Contacts = new ContactRepository(Database);
-        Send = new SendService(Accounts, Messages, Drafts, Outbox, Files, new SmtpMailSender(secrets), Sessions, Actions, Contacts);
+        Send = new SendService(Accounts, Messages, Drafts, Outbox, Files, new SmtpMailSender(secrets), Sessions, Actions, Contacts)
+        {
+            UndoDelay = TimeSpan.FromSeconds(AppSettings.UndoSendSeconds),
+        };
     }
 
     private readonly AccountSecretProvider _secrets;
@@ -48,6 +52,7 @@ public sealed class AppServices : IDisposable
 
     public SettingsRepository Settings { get; }
     public OAuthSettings OAuth { get; }
+    public AppSettings AppSettings { get; }
     public OAuthClient OAuthClient { get; }
 
     public AppDataLocation Location { get; }

@@ -19,6 +19,19 @@ public static class Program
 
         // 同じデータベースを 2 つのプロセスで同期しないよう、二重起動を防ぐ
         using var mutex = new Mutex(initiallyOwned: true, @"Local\Hayabumi.SingleInstance", out var createdNew);
+        if (!createdNew && args.Contains("--restart"))
+        {
+            // 設定の変更で再起動したとき。前のプロセスが終わるのを待つ
+            try
+            {
+                createdNew = mutex.WaitOne(TimeSpan.FromSeconds(15));
+            }
+            catch (AbandonedMutexException)
+            {
+                createdNew = true;
+            }
+        }
+
         if (!createdNew)
         {
             // トレイに常駐している場合もあるため、既存の画面を前面に出してもらう

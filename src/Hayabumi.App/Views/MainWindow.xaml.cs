@@ -47,6 +47,13 @@ public partial class MainWindow : Window
                 return;
             }
 
+            if (!_services.AppSettings.CloseToTray)
+            {
+                e.Cancel = true;
+                Dispatcher.BeginInvoke(ExitApplication);
+                return;
+            }
+
             // 閉じてもタスクトレイに常駐し、受信と通知を続ける
             e.Cancel = true;
             Hide();
@@ -405,6 +412,42 @@ public partial class MainWindow : Window
     {
         var dialog = new UpdateTokenWindow(_services.Updates) { Owner = this };
         dialog.ShowDialog();
+    }
+
+    private void OnSettingsClick(object sender, RoutedEventArgs e)
+    {
+        var dialog = new SettingsWindow(_services) { Owner = this };
+        if (dialog.ShowDialog() != true && !dialog.AccountsChanged)
+        {
+            return;
+        }
+
+        if (dialog.RestartRequired)
+        {
+            MessageBox.Show(this, "データをコピーしました。Hayabumi を再起動します。", "Hayabumi", MessageBoxButton.OK, MessageBoxImage.Information);
+            if (Environment.ProcessPath is { } path)
+            {
+                Process.Start(new ProcessStartInfo(path, "--restart") { UseShellExecute = false });
+            }
+
+            ExitApplication();
+            return;
+        }
+
+        _viewModel.ApplySettings();
+    }
+
+    private void OnAddressBookClick(object sender, RoutedEventArgs e)
+    {
+        var window = new AddressBookWindow(_services.Contacts) { Owner = this };
+        window.ComposeRequested += (_, to) =>
+        {
+            if (_services.Accounts.GetAll() is { Count: > 0 } accounts)
+            {
+                OpenCompose(Hayabumi.Core.Compose.DraftFactory.CreateNew(accounts[0], to));
+            }
+        };
+        window.Show();
     }
 
     private void OnOAuthSettingsClick(object sender, RoutedEventArgs e)

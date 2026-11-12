@@ -122,7 +122,7 @@ public partial class ComposeWindow : Window
         SendCheckResult checks;
         try
         {
-            checks = SendChecks.Analyze(draft, account);
+            checks = SendChecks.Analyze(draft, account, _services.AppSettings.InternalDomains);
         }
         catch (AddressParseException ex)
         {

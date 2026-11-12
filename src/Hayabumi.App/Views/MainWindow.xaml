@@ -38,6 +38,9 @@
                 <MenuItem Header="削除(_D)" InputGestureText="Delete" Command="{Binding DeleteCommand}" />
             </MenuItem>
             <MenuItem Header="ツール(_T)">
+                <MenuItem Header="設定(_S)…" Click="OnSettingsClick" />
+                <MenuItem Header="アドレス帳(_B)…" Click="OnAddressBookClick" />
+                <Separator />
                 <MenuItem Header="更新用トークンの設定(_T)…" Click="OnUpdateTokenClick" />
                 <MenuItem Header="OAuth の設定(_A)…" Click="OnOAuthSettingsClick" />
                 <MenuItem Header="データフォルダを開く(_O)" Click="OnOpenDataFolderClick" />
