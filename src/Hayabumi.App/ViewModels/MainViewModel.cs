@@ -1,0 +1,587 @@
+using System.Collections;
+using System.Collections.ObjectModel;
+using System.IO;
+using System.Windows.Threading;
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using Hayabumi.App.Services;
+using Hayabumi.Core.Accounts;
+using Hayabumi.Core.Mime;
+using Hayabumi.Core.Storage;
+using Hayabumi.Core.Sync;
+
+namespace Hayabumi.App.ViewModels;
+
+public sealed partial class MainViewModel : ObservableObject
+{
+    private static readonly TimeSpan s_autoSyncInterval = TimeSpan.FromMinutes(5);
+
+    private readonly AppServices _services;
+    private readonly DispatcherTimer _autoSyncTimer;
+    private readonly DispatcherTimer _searchDebounce;
+    private VirtualMessageList? _folderList;
+    private CancellationTokenSource? _detailLoad;
+    private bool _suppressSelectionReload;
+
+    [ObservableProperty]
+    private FolderNodeViewModel? _selectedFolder;
+
+    [ObservableProperty]
+    private IList? _messages;
+
+    [ObservableProperty]
+    private MessageItemViewModel? _selectedMessage;
+
+    [ObservableProperty]
+    private MessageDetailViewModel? _detail;
+
+    [ObservableProperty]
+    private bool _isDetailLoading;
+
+    [ObservableProperty]
+    private string _searchText = string.Empty;
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(SyncCommand))]
+    private bool _isSyncing;
+
+    [ObservableProperty]
+    private string _statusText = "準備完了";
+
+    [ObservableProperty]
+    private string _listHeader = string.Empty;
+
+    public MainViewModel(AppServices services)
+    {
+        _services = services;
+        _autoSyncTimer = new DispatcherTimer { Interval = s_autoSyncInterval };
+        _autoSyncTimer.Tick += async (_, _) => await SyncAsync();
+        _searchDebounce = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(300) };
+        _searchDebounce.Tick += (_, _) =>
+        {
+            _searchDebounce.Stop();
+            ReloadList();
+        };
+    }
+
+    public ObservableCollection<AccountNodeViewModel> Accounts { get; } = [];
+
+    public bool HasAccounts => Accounts.Count > 0;
+
+    public AppServices Services => _services;
+
+    /// <summary>本文を表示する前に呼ばれる（画面側で WebView2 に表示する）。</summary>
+    public event EventHandler<MessageDetailViewModel?>? DetailChanged;
+
+    /// <summary>アカウント追加の画面を開くよう画面側に依頼する。</summary>
+    public event EventHandler? AddAccountRequested;
+
+    public void Start()
+    {
+        CleanViewerDirectory();
+        LoadAccounts();
+        if (!HasAccounts)
+        {
+            StatusText = "アカウントを追加してください";
+            AddAccountRequested?.Invoke(this, EventArgs.Empty);
+        }
+        else
+        {
+            _ = SyncAsync();
+        }
+
+        _autoSyncTimer.Start();
+        _ = CheckUpdatesQuietlyAsync();
+    }
+
+    public void LoadAccounts()
+    {
+        var selectedId = SelectedFolder?.Id;
+        Accounts.Clear();
+        foreach (var account in _services.Accounts.GetAll())
+        {
+            var node = new AccountNodeViewModel(account);
+            foreach (var folder in _services.Folders.GetByAccount(account.Id))
+            {
+                node.Folders.Add(new FolderNodeViewModel(folder));
+            }
+
+            Accounts.Add(node);
+        }
+
+        OnPropertyChanged(nameof(HasAccounts));
+        SelectedFolder = Accounts.SelectMany(a => a.Folders).FirstOrDefault(f => f.Id == selectedId)
+            ?? Accounts.SelectMany(a => a.Folders).FirstOrDefault(f => f.Folder.Role == FolderRole.Inbox)
+            ?? Accounts.SelectMany(a => a.Folders).FirstOrDefault();
+    }
+
+    partial void OnSelectedFolderChanged(FolderNodeViewModel? value)
+    {
+        if (_suppressSelectionReload)
+        {
+            return;
+        }
+
+        SearchText = string.Empty;
+        ReloadList();
+    }
+
+    partial void OnSearchTextChanged(string value)
+    {
+        _searchDebounce.Stop();
+        _searchDebounce.Start();
+    }
+
+    partial void OnSelectedMessageChanged(MessageItemViewModel? value)
+    {
+        if (!_suppressSelectionReload)
+        {
+            _ = LoadDetailAsync(value);
+        }
+    }
+
+    /// <summary>表示し直さずに選択だけを変える（一覧の再読み込み後に選択を戻すときなど）。</summary>
+    private void SetSelectionQuietly(Action action)
+    {
+        _suppressSelectionReload = true;
+        try
+        {
+            action();
+        }
+        finally
+        {
+            _suppressSelectionReload = false;
+        }
+    }
+
+    [RelayCommand(CanExecute = nameof(CanSync))]
+    private async Task SyncAsync()
+    {
+        if (!HasAccounts || !await _services.SyncLock.WaitAsync(0))
+        {
+            return;
+        }
+
+        IsSyncing = true;
+        var errors = new List<string>();
+        var added = 0;
+        try
+        {
+            foreach (var node in Accounts.ToList())
+            {
+                StatusText = $"{node.EmailAddress} を同期しています…";
+                var lastRefresh = DateTime.MinValue;
+                var progress = new Progress<SyncProgress>(p =>
+                {
+                    if (p.Total > 0)
+                    {
+                        StatusText = $"{node.EmailAddress}: {p.FolderName} {p.Done:N0}/{p.Total:N0}";
+                    }
+
+                    // 初回同期は時間がかかるため、途中経過も 2 秒おきに一覧へ反映する
+                    if (p.FolderId == 0 || DateTime.UtcNow - lastRefresh > TimeSpan.FromSeconds(2))
+                    {
+                        lastRefresh = DateTime.UtcNow;
+                        RefreshFolders(node);
+                        if (p.FolderId != 0 && p.FolderId == SelectedFolder?.Id && string.IsNullOrEmpty(SearchText))
+                        {
+                            RefreshListKeepingSelection();
+                        }
+                    }
+                });
+                try
+                {
+                    var result = await Task.Run(() => _services.CreateAccountSynchronizer().SyncAsync(node.Account, progress));
+                    added += result.Added;
+                    errors.AddRange(result.Errors.Select(e => $"{node.EmailAddress}: {e}"));
+                }
+                catch (Exception ex)
+                {
+                    Log.Error($"同期に失敗しました: {node.EmailAddress}", ex);
+                    errors.Add($"{node.EmailAddress}: {ex.Message}");
+                }
+
+                RefreshFolders(node);
+            }
+        }
+        finally
+        {
+            IsSyncing = false;
+            _services.SyncLock.Release();
+        }
+
+        if (string.IsNullOrEmpty(SearchText))
+        {
+            RefreshListKeepingSelection();
+        }
+
+        var time = DateTime.Now.ToString("HH:mm", System.Globalization.CultureInfo.InvariantCulture);
+        StatusText = errors.Count > 0
+            ? $"{time} 同期でエラーが発生しました: {errors[0]}"
+            : added > 0 ? $"{time} {added:N0} 通の新着メールを受信しました" : $"{time} 同期しました";
+    }
+
+    private bool CanSync() => !IsSyncing;
+
+    [RelayCommand]
+    private void AddAccount() => AddAccountRequested?.Invoke(this, EventArgs.Empty);
+
+    [RelayCommand]
+    private void ToggleRead()
+    {
+        if (SelectedMessage is not { Id: > 0 } item)
+        {
+            return;
+        }
+
+        var read = item.IsUnread;
+        _services.Actions.MarkRead([item.Item], read);
+        item.IsUnread = !read;
+        RefreshFolderCounts();
+    }
+
+    [RelayCommand]
+    private void ToggleFlag()
+    {
+        if (SelectedMessage is not { Id: > 0 } item)
+        {
+            return;
+        }
+
+        var flag = !item.IsFlagged;
+        _services.Actions.SetFlags([item.Item], MessageFlags.Flagged, flag);
+        item.IsFlagged = flag;
+    }
+
+    [RelayCommand]
+    private void Delete()
+    {
+        if (SelectedMessage is not { Id: > 0 } item)
+        {
+            return;
+        }
+
+        var index = Messages?.IndexOf(item) ?? -1;
+        _services.Actions.Delete([item.Item]);
+        RefreshFolderCounts();
+        ReloadList();
+        if (Messages is { Count: > 0 } list && index >= 0)
+        {
+            SelectedMessage = list[Math.Min(index, list.Count - 1)] as MessageItemViewModel;
+        }
+    }
+
+    [RelayCommand]
+    private void ShowRemoteContent()
+    {
+        if (SelectedMessage is { } item)
+        {
+            _ = LoadDetailAsync(item, allowRemoteContent: true);
+        }
+    }
+
+    public async Task<string> CheckUpdatesAsync()
+    {
+        try
+        {
+            var result = await _services.Updates.CheckAndDownloadAsync();
+            return result switch
+            {
+                UpdateCheckResult.NotInstalled => "インストール版ではないため、更新を確認できません。",
+                UpdateCheckResult.TokenRequired => "更新を確認するには、［ツール］→［更新用トークンの設定］でトークンを設定してください。",
+                UpdateCheckResult.UpToDate => $"最新の版です（{_services.Updates.CurrentVersion}）。",
+                UpdateCheckResult.Downloaded => $"新しい版（{_services.Updates.PendingVersion}）をダウンロードしました。",
+                _ => string.Empty,
+            };
+        }
+        catch (Exception ex)
+        {
+            Log.Error("更新の確認に失敗しました", ex);
+            return $"更新を確認できませんでした: {ex.Message}";
+        }
+    }
+
+    private async Task CheckUpdatesQuietlyAsync()
+    {
+        try
+        {
+            if (await _services.Updates.CheckAndDownloadAsync() == UpdateCheckResult.Downloaded)
+            {
+                StatusText = $"新しい版（{_services.Updates.PendingVersion}）を準備しました。［ヘルプ］→［更新を確認］から再起動すると適用されます";
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Error("更新の自動確認に失敗しました", ex);
+        }
+    }
+
+    public async Task OnAccountAddedAsync()
+    {
+        LoadAccounts();
+        await SyncAsync();
+        LoadAccounts();
+    }
+
+    private void ReloadList()
+    {
+        if (!string.IsNullOrWhiteSpace(SearchText))
+        {
+            var accountId = SelectedFolder?.Folder.AccountId;
+            var results = _services.Messages.Search(SearchText, accountId, limit: 1000);
+            Messages = results.Select(r => new MessageItemViewModel(r)).ToList();
+            ListHeader = $"「{SearchText.Trim()}」の検索結果 {results.Count:N0} 件" + (results.Count >= 1000 ? "（新しい 1,000 件）" : string.Empty);
+            return;
+        }
+
+        if (SelectedFolder is null)
+        {
+            _folderList = null;
+            Messages = null;
+            ListHeader = string.Empty;
+            return;
+        }
+
+        var folderId = SelectedFolder.Id;
+        var count = _services.Messages.Count(folderId);
+        _folderList = new VirtualMessageList(count, (offset, limit) =>
+            [.. _services.Messages.GetPage(folderId, offset, limit).Select(m => new MessageItemViewModel(m))]);
+        Messages = _folderList;
+        ListHeader = $"{SelectedFolder.Name}  {count:N0} 通";
+    }
+
+    private void RefreshListKeepingSelection()
+    {
+        if (SelectedFolder is null || _folderList is null || !ReferenceEquals(Messages, _folderList))
+        {
+            ReloadList();
+            return;
+        }
+
+        var selectedId = SelectedMessage?.Id;
+        var count = _services.Messages.Count(SelectedFolder.Id);
+        _folderList.Reset(count);
+        ListHeader = $"{SelectedFolder.Name}  {count:N0} 通";
+        if (selectedId is not null && count > 0)
+        {
+            // 新着は先頭に入るため、選択していたメールは最初の数ページにあることが多い
+            for (var i = 0; i < Math.Min(count, 1000); i++)
+            {
+                if (_folderList[i] is MessageItemViewModel m && m.Id == selectedId)
+                {
+                    SetSelectionQuietly(() => SelectedMessage = m);
+                    break;
+                }
+            }
+        }
+    }
+
+    private void RefreshFolders(AccountNodeViewModel node)
+    {
+        var folders = _services.Folders.GetByAccount(node.Account.Id);
+        var existing = node.Folders.ToDictionary(f => f.Id);
+        if (folders.Count != node.Folders.Count || folders.Any(f => !existing.ContainsKey(f.Id)))
+        {
+            var selectedId = SelectedFolder?.Id;
+            node.Folders.Clear();
+            foreach (var folder in folders)
+            {
+                node.Folders.Add(new FolderNodeViewModel(folder));
+            }
+
+            var same = Accounts.SelectMany(a => a.Folders).FirstOrDefault(f => f.Id == selectedId);
+            if (same is not null)
+            {
+                // 同じフォルダの新しい項目に差し替えるだけなので、一覧は読み直さない
+                SetSelectionQuietly(() => SelectedFolder = same);
+            }
+            else if (SelectedFolder is null || SelectedFolder.Folder.AccountId == node.Account.Id)
+            {
+                SelectedFolder = node.Folders.FirstOrDefault(f => f.Folder.Role == FolderRole.Inbox) ?? node.Folders.FirstOrDefault();
+            }
+
+            OnPropertyChanged(nameof(SelectedFolder));
+            return;
+        }
+
+        foreach (var folder in folders)
+        {
+            existing[folder.Id].Update(folder);
+        }
+    }
+
+    private void RefreshFolderCounts()
+    {
+        if (SelectedFolder is null)
+        {
+            return;
+        }
+
+        foreach (var node in Accounts.Where(a => a.Account.Id == SelectedFolder.Folder.AccountId))
+        {
+            RefreshFolders(node);
+        }
+    }
+
+    private async Task LoadDetailAsync(MessageItemViewModel? item, bool allowRemoteContent = false)
+    {
+        _detailLoad?.Cancel();
+        _detailLoad?.Dispose();
+        _detailLoad = new CancellationTokenSource();
+        var cancellationToken = _detailLoad.Token;
+
+        if (item is null || item.Id == 0)
+        {
+            Detail = null;
+            DetailChanged?.Invoke(this, null);
+            return;
+        }
+
+        IsDetailLoading = true;
+        try
+        {
+            var listItem = _services.Messages.Get(item.Id);
+            if (listItem is null)
+            {
+                return;
+            }
+
+            if (listItem.FilePath is null || !_services.Files.Exists(listItem.FilePath))
+            {
+                StatusText = "本文を取得しています…";
+                await DownloadBodyAsync(listItem, cancellationToken);
+                listItem = _services.Messages.Get(item.Id);
+                if (listItem?.FilePath is null)
+                {
+                    StatusText = "本文を取得できませんでした（サーバーで削除された可能性があります）";
+                    return;
+                }
+
+                item.Update(listItem);
+                StatusText = "準備完了";
+            }
+
+            var filePath = listItem.FilePath;
+            var detail = await Task.Run(() => BuildDetail(listItem.Id, filePath, allowRemoteContent), cancellationToken);
+            if (cancellationToken.IsCancellationRequested)
+            {
+                return;
+            }
+
+            Detail = detail;
+            DetailChanged?.Invoke(this, detail);
+
+            if (item.IsUnread)
+            {
+                _services.Actions.MarkRead([listItem], read: true);
+                item.IsUnread = false;
+                RefreshFolderCounts();
+            }
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception ex)
+        {
+            Log.Error("本文の表示に失敗しました", ex);
+            StatusText = $"本文を表示できませんでした: {ex.Message}";
+        }
+        finally
+        {
+            if (!cancellationToken.IsCancellationRequested)
+            {
+                IsDetailLoading = false;
+            }
+        }
+    }
+
+    private async Task DownloadBodyAsync(MessageListItem item, CancellationToken cancellationToken)
+    {
+        var folder = _services.Folders.Get(item.FolderId);
+        var account = _services.Accounts.Get(item.AccountId);
+        if (folder is null || account is null || item.Uid is null)
+        {
+            return;
+        }
+
+        await Task.Run(async () =>
+        {
+            await using var session = await _services.Sessions.ConnectAsync(account, cancellationToken);
+            await using var remote = await session.OpenFolderAsync(folder.FullName, writable: false, cancellationToken);
+            await _services.CreateFolderSynchronizer().DownloadBodyAsync(remote, account.Id, item.Id, item.Uid.Value, cancellationToken);
+        }, cancellationToken);
+    }
+
+    private MessageDetailViewModel BuildDetail(long messageId, string filePath, bool allowRemoteContent)
+    {
+        using var stream = _services.Files.OpenRead(filePath);
+        var message = MessageParser.Load(stream);
+        var parsed = MessageParser.Parse(message);
+        var (html, hasRemote) = MessageHtmlBuilder.Build(message, parsed, allowRemoteContent);
+
+        Directory.CreateDirectory(_services.ViewerDirectory);
+        var htmlFile = Path.Combine(_services.ViewerDirectory, $"{Guid.NewGuid():N}.html");
+        File.WriteAllText(htmlFile, html, new System.Text.UTF8Encoding(true));
+
+        var attachments = MessageParser.FindAttachments(message)
+            .Select((a, i) => (a.Info, Index: i))
+            .Where(a => !a.Info.IsInline)
+            .Select(a => new AttachmentViewModel(a.Index, a.Info.FileName, a.Info.MimeType))
+            .ToList();
+
+        return new MessageDetailViewModel
+        {
+            MessageId = messageId,
+            FilePath = filePath,
+            Parsed = parsed,
+            HtmlFilePath = htmlFile,
+            HasRemoteContent = hasRemote,
+            RemoteContentAllowed = allowRemoteContent,
+            Attachments = attachments,
+        };
+    }
+
+    /// <summary>添付ファイルを保存する。</summary>
+    public void SaveAttachment(AttachmentViewModel attachment, string destinationPath)
+    {
+        ArgumentNullException.ThrowIfNull(attachment);
+        if (Detail is null)
+        {
+            return;
+        }
+
+        using var stream = _services.Files.OpenRead(Detail.FilePath);
+        var message = MessageParser.Load(stream);
+        var entity = MessageParser.FindAttachments(message)[attachment.Index].Entity;
+        using var output = File.Create(destinationPath);
+        switch (entity)
+        {
+            case MimeKit.MimePart part when part.Content is not null:
+                part.Content.DecodeTo(output);
+                break;
+            case MimeKit.MessagePart rfc822 when rfc822.Message is not null:
+                rfc822.Message.WriteTo(output);
+                break;
+        }
+    }
+
+    private void CleanViewerDirectory()
+    {
+        try
+        {
+            if (Directory.Exists(_services.ViewerDirectory))
+            {
+                foreach (var file in Directory.EnumerateFiles(_services.ViewerDirectory, "*.html"))
+                {
+                    File.Delete(file);
+                }
+            }
+        }
+        catch (IOException)
+        {
+        }
+        catch (UnauthorizedAccessException)
+        {
+        }
+    }
+}

@@ -31,25 +31,7 @@ public static partial class MessageParser
     {
         ArgumentNullException.ThrowIfNull(message);
 
-        TextPart? plain = null;
-        TextPart? html = null;
-        foreach (var part in message.BodyParts.OfType<TextPart>())
-        {
-            if (part.IsAttachment)
-            {
-                continue;
-            }
-
-            if (plain is null && part.IsPlain)
-            {
-                plain = part;
-            }
-            else if (html is null && part.IsHtml)
-            {
-                html = part;
-            }
-        }
-
+        var (plain, html) = FindBodyParts(message);
         var from = message.From.Mailboxes.FirstOrDefault();
         var date = message.Date == DateTimeOffset.MinValue ? DateTimeOffset.UnixEpoch : message.Date;
 
@@ -66,7 +48,7 @@ public static partial class MessageParser
             Date = date,
             TextBody = plain is null ? null : DecodeText(plain),
             HtmlBody = html is null ? null : DecodeText(html),
-            Attachments = [.. GetAttachments(message, plain, html)],
+            Attachments = [.. EnumerateAttachments(message, plain, html).Select(a => a.Info)],
         };
     }
 
@@ -170,7 +152,40 @@ public static partial class MessageParser
         return match.Success ? match.Groups[1].Value : null;
     }
 
-    private static IEnumerable<AttachmentInfo> GetAttachments(MimeMessage message, TextPart? plain, TextPart? html)
+    /// <summary>本文として表示するテキストパートと HTML パートを探す。</summary>
+    public static (TextPart? Plain, TextPart? Html) FindBodyParts(MimeMessage message)
+    {
+        ArgumentNullException.ThrowIfNull(message);
+        TextPart? plain = null;
+        TextPart? html = null;
+        foreach (var part in message.BodyParts.OfType<TextPart>())
+        {
+            if (part.IsAttachment)
+            {
+                continue;
+            }
+
+            if (plain is null && part.IsPlain)
+            {
+                plain = part;
+            }
+            else if (html is null && part.IsHtml)
+            {
+                html = part;
+            }
+        }
+
+        return (plain, html);
+    }
+
+    /// <summary>添付ファイル（本文中の画像を含む）と、その MIME パートを返す。</summary>
+    public static IReadOnlyList<(MimeEntity Entity, AttachmentInfo Info)> FindAttachments(MimeMessage message)
+    {
+        var (plain, html) = FindBodyParts(message);
+        return [.. EnumerateAttachments(message, plain, html)];
+    }
+
+    private static IEnumerable<(MimeEntity Entity, AttachmentInfo Info)> EnumerateAttachments(MimeMessage message, TextPart? plain, TextPart? html)
     {
         foreach (var entity in message.BodyParts)
         {
@@ -188,20 +203,20 @@ public static partial class MessageParser
                     continue;
                 }
 
-                yield return new AttachmentInfo(
+                yield return (part, new AttachmentInfo(
                     part.FileName ?? DefaultFileName(part.ContentType),
                     part.ContentType.MimeType,
                     part.ContentId,
-                    isInline);
+                    isInline));
             }
             else if (entity is MessagePart rfc822)
             {
                 var subject = rfc822.Message?.Subject;
-                yield return new AttachmentInfo(
+                yield return (rfc822, new AttachmentInfo(
                     string.IsNullOrWhiteSpace(subject) ? "転送されたメール.eml" : subject + ".eml",
                     "message/rfc822",
                     null,
-                    false);
+                    false));
             }
         }
     }

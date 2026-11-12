@@ -33,6 +33,8 @@ public sealed class AccountSynchronizer(
         await ReplayPendingAsync(session, account.Id, errors, cancellationToken).ConfigureAwait(false);
 
         var localFolders = await SyncFolderListAsync(session, account.Id, cancellationToken).ConfigureAwait(false);
+        // フォルダ一覧が更新されたことを知らせる（画面にフォルダを先に表示するため）
+        progress?.Report(new SyncProgress(0, string.Empty, 0, 0));
         var synchronizer = new FolderSynchronizer(folders, messages, files, options);
 
         // 受信トレイを最初に同期する

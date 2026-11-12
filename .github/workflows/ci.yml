@@ -1,0 +1,39 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    env:
+      DOTNET_NOLOGO: true
+      DOTNET_CLI_TELEMETRY_OPTOUT: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build -c Release --no-restore
+
+      - name: Test
+        run: dotnet test tests/Hayabumi.Core.Tests -c Release --no-build
+
+      - name: Publish (portable)
+        run: dotnet publish src/Hayabumi.App -c Release -o publish
+
+      - name: Upload portable build
+        uses: actions/upload-artifact@v4
+        with:
+          name: Hayabumi-portable-${{ github.sha }}
+          path: publish
+          retention-days: 14

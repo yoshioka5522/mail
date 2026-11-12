@@ -40,7 +40,7 @@ public sealed class FolderSynchronizer(FolderRepository folders, MessageReposito
                 cancellationToken.ThrowIfCancellationRequested();
                 var headers = await remote.FetchHeadersAsync(batch, added < options.PreviewLimit, cancellationToken).ConfigureAwait(false);
                 added += messages.InsertMany(local.AccountId, local.Id, headers);
-                progress?.Report(new SyncProgress(local.DisplayName, added, newUids.Count));
+                progress?.Report(new SyncProgress(local.Id, local.DisplayName, added, newUids.Count));
             }
         }
 

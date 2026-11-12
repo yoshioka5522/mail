@@ -1,11 +1,35 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net10.0-windows</TargetFramework>
-    <Nullable>enable</Nullable>
-    <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
+    <RootNamespace>Hayabumi.App</RootNamespace>
+    <AssemblyName>Hayabumi</AssemblyName>
+    <StartupObject>Hayabumi.App.Program</StartupObject>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <SelfContained>true</SelfContained>
+    <PublishReadyToRun>true</PublishReadyToRun>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <!-- アプリ本体（画面）では、ライブラリ向けの一部の規則を緩める -->
+    <NoWarn>$(NoWarn);CA1515;CA1001;CA1031;CA2000;CA1010</NoWarn>
   </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Main メソッドを Program.cs に置くため（Velopack の初期化を最初に行う） -->
+    <ApplicationDefinition Remove="App.xaml" />
+    <Page Include="App.xaml" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="CommunityToolkit.Mvvm" />
+    <PackageReference Include="Microsoft.Web.WebView2" />
+    <PackageReference Include="Velopack" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Hayabumi.Core\Hayabumi.Core.csproj" />
+  </ItemGroup>
 
 </Project>

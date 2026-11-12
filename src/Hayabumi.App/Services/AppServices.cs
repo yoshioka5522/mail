@@ -1,0 +1,82 @@
+using System.IO;
+using Hayabumi.Core.Accounts;
+using Hayabumi.Core.Security;
+using Hayabumi.Core.Storage;
+using Hayabumi.Core.Sync;
+using Hayabumi.Core.Sync.Imap;
+
+namespace Hayabumi.App.Services;
+
+/// <summary>アプリ全体で共有するサービス（起動時に 1 回だけ作る）。</summary>
+public sealed class AppServices : IDisposable
+{
+    private AppServices(AppDataLocation location)
+    {
+        Location = location;
+        Database = new MailDatabase(location.DatabasePath);
+        Database.Initialize();
+        Accounts = new AccountRepository(Database);
+        Folders = new FolderRepository(Database);
+        Messages = new MessageRepository(Database);
+        Pending = new PendingOperationRepository(Database);
+        Files = new MessageFileStore(location.Root);
+        Credentials = new WindowsCredentialStore();
+        Sessions = new ImapSessionFactory(new StoredPasswordSecretProvider(Credentials));
+        Actions = new MailActions(Folders, Messages, Pending, Files);
+        Updates = new UpdateService(Credentials);
+    }
+
+    public AppDataLocation Location { get; }
+    public MailDatabase Database { get; }
+    public AccountRepository Accounts { get; }
+    public FolderRepository Folders { get; }
+    public MessageRepository Messages { get; }
+    public PendingOperationRepository Pending { get; }
+    public MessageFileStore Files { get; }
+    public ICredentialStore Credentials { get; }
+    public IMailStoreSessionFactory Sessions { get; }
+    public MailActions Actions { get; }
+    public UpdateService Updates { get; }
+    public SyncOptions SyncOptions { get; } = new();
+
+    /// <summary>同期は 1 つずつ行う（同じアカウントへの同時接続を避ける）。</summary>
+    public SemaphoreSlim SyncLock { get; } = new(1, 1);
+
+    public string WebViewDataDirectory => Path.Combine(Location.Root, "WebView2");
+
+    public string ViewerDirectory => Path.Combine(Location.Root, "viewer");
+
+    public static AppServices Create()
+    {
+        var location = new AppDataLocation();
+        Log.Initialize(location.LogDirectory);
+        Directory.CreateDirectory(location.Root);
+        Log.Info($"起動 データフォルダ: {location.Root}");
+        return new AppServices(location);
+    }
+
+    public AccountSynchronizer CreateAccountSynchronizer()
+        => new(Sessions, Folders, Messages, Pending, Files, SyncOptions);
+
+    public FolderSynchronizer CreateFolderSynchronizer()
+        => new(Folders, Messages, Files, SyncOptions);
+
+    /// <summary>入力されたパスワードで接続できるかを確かめる（保存前の確認用）。</summary>
+    public static async Task TestConnectionAsync(Account account, string password, CancellationToken cancellationToken)
+    {
+        var factory = new ImapSessionFactory(new FixedSecretProvider(password)) { Timeout = TimeSpan.FromSeconds(30) };
+        await using var session = await factory.ConnectAsync(account, cancellationToken).ConfigureAwait(false);
+        await session.GetFoldersAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    public void Dispose()
+    {
+        SyncLock.Dispose();
+        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+    }
+
+    private sealed class FixedSecretProvider(string secret) : IAccountSecretProvider
+    {
+        public Task<string> GetSecretAsync(Account account, CancellationToken cancellationToken) => Task.FromResult(secret);
+    }
+}

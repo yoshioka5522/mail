@@ -234,3 +234,24 @@ public sealed class SyncTests : IDisposable
         Assert.Equal(expected, FolderRoleGuesser.Guess(fullName, delimiter));
     }
 }
+
+public class ServerPresetTests
+{
+    [Theory]
+    [InlineData("taro@gmail.com", "imap.gmail.com")]
+    [InlineData("taro@Yahoo.co.jp", "imap.mail.yahoo.co.jp")]
+    [InlineData("taro@example.co.jp", "imap.example.co.jp")]
+    public void Preset_is_found_by_domain(string email, string expectedHost)
+    {
+        Assert.Equal(expectedHost, Hayabumi.Core.Accounts.ServerPresets.Find(email)?.Incoming.Host);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("taro")]
+    [InlineData("taro@")]
+    public void Invalid_address_has_no_preset(string email)
+    {
+        Assert.Null(Hayabumi.Core.Accounts.ServerPresets.Find(email));
+    }
+}

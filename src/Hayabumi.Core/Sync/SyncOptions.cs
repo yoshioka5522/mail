@@ -32,4 +32,4 @@ public sealed record FolderSyncResult
     public bool Reset { get; init; }
 }
 
-public sealed record SyncProgress(string FolderName, int Done, int Total);
+public sealed record SyncProgress(long FolderId, string FolderName, int Done, int Total);

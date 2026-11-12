@@ -1,0 +1,280 @@
+<Window x:Class="Hayabumi.App.Views.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
+        xmlns:vm="clr-namespace:Hayabumi.App.ViewModels"
+        Title="Hayabumi" Width="1280" Height="800" MinWidth="800" MinHeight="500"
+        WindowStartupLocation="CenterScreen"
+        PreviewKeyDown="OnPreviewKeyDown">
+    <Window.InputBindings>
+        <KeyBinding Key="F5" Command="{Binding SyncCommand}" />
+        <KeyBinding Key="Delete" Command="{Binding DeleteCommand}" />
+        <KeyBinding Key="Q" Modifiers="Ctrl" Command="{Binding ToggleReadCommand}" />
+    </Window.InputBindings>
+
+    <DockPanel>
+        <Menu DockPanel.Dock="Top" Background="White">
+            <MenuItem Header="ファイル(_F)">
+                <MenuItem Header="アカウントの追加(_A)…" Command="{Binding AddAccountCommand}" />
+                <Separator />
+                <MenuItem Header="終了(_X)" Click="OnExitClick" />
+            </MenuItem>
+            <MenuItem Header="メッセージ(_M)">
+                <MenuItem Header="受信(_R)" InputGestureText="F5" Command="{Binding SyncCommand}" />
+                <MenuItem Header="既読/未読の切り替え(_U)" InputGestureText="Ctrl+Q" Command="{Binding ToggleReadCommand}" />
+                <MenuItem Header="フラグの切り替え(_G)" Command="{Binding ToggleFlagCommand}" />
+                <MenuItem Header="削除(_D)" InputGestureText="Delete" Command="{Binding DeleteCommand}" />
+            </MenuItem>
+            <MenuItem Header="ツール(_T)">
+                <MenuItem Header="更新用トークンの設定(_T)…" Click="OnUpdateTokenClick" />
+                <MenuItem Header="データフォルダを開く(_O)" Click="OnOpenDataFolderClick" />
+            </MenuItem>
+            <MenuItem Header="ヘルプ(_H)">
+                <MenuItem Header="更新を確認(_U)" Click="OnCheckUpdatesClick" />
+                <MenuItem Header="バージョン情報(_A)" Click="OnAboutClick" />
+            </MenuItem>
+        </Menu>
+
+        <Border DockPanel.Dock="Top" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,1" Background="White" Padding="8,6">
+            <DockPanel>
+                <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">
+                    <Button Command="{Binding SyncCommand}" ToolTip="受信 (F5)">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE72C;" VerticalAlignment="Center" Margin="0,0,6,0" />
+                            <TextBlock Text="受信" />
+                        </StackPanel>
+                    </Button>
+                    <Button IsEnabled="False" ToolTip="新規作成（次の版で対応）">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE932;" VerticalAlignment="Center" Margin="0,0,6,0" />
+                            <TextBlock Text="新規作成" />
+                        </StackPanel>
+                    </Button>
+                    <Button Command="{Binding DeleteCommand}" ToolTip="削除 (Delete)">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE74D;" VerticalAlignment="Center" Margin="0,0,6,0" />
+                            <TextBlock Text="削除" />
+                        </StackPanel>
+                    </Button>
+                    <Button Command="{Binding ToggleFlagCommand}" ToolTip="フラグ">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE7C1;" VerticalAlignment="Center" Margin="0,0,6,0" />
+                            <TextBlock Text="フラグ" />
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
+                <Grid DockPanel.Dock="Right" Width="320" HorizontalAlignment="Right">
+                    <TextBox x:Name="SearchBox" Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" Padding="26,4,4,4" VerticalContentAlignment="Center" />
+                    <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE721;" Margin="8,0,0,0" VerticalAlignment="Center" Foreground="{StaticResource SubtleBrush}" IsHitTestVisible="False" />
+                    <TextBlock Text="検索（Ctrl+E）" Margin="28,0,0,0" VerticalAlignment="Center" Foreground="{StaticResource SubtleBrush}" IsHitTestVisible="False">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Text, ElementName=SearchBox}" Value="">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                </Grid>
+            </DockPanel>
+        </Border>
+
+        <StatusBar DockPanel.Dock="Bottom" Background="{StaticResource PaneBrush}">
+            <StatusBarItem>
+                <StackPanel Orientation="Horizontal">
+                    <ProgressBar IsIndeterminate="True" Width="60" Height="8" Margin="0,0,8,0"
+                                 Visibility="{Binding IsSyncing, Converter={StaticResource BoolToVisibility}}" />
+                    <TextBlock Text="{Binding StatusText}" />
+                </StackPanel>
+            </StatusBarItem>
+        </StatusBar>
+
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="240" MinWidth="160" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="460" MinWidth="280" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" MinWidth="300" />
+            </Grid.ColumnDefinitions>
+
+            <!-- フォルダ -->
+            <ScrollViewer Grid.Column="0" Background="{StaticResource PaneBrush}" VerticalScrollBarVisibility="Auto">
+                <StackPanel Margin="0,6">
+                    <ItemsControl ItemsSource="{Binding Accounts}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="{x:Type vm:AccountNodeViewModel}">
+                                <StackPanel Margin="0,0,0,8">
+                                    <TextBlock Text="{Binding Name}" ToolTip="{Binding EmailAddress}" FontWeight="SemiBold" Margin="12,6,8,4" TextTrimming="CharacterEllipsis" />
+                                    <ListBox ItemsSource="{Binding Folders}" BorderThickness="0" Background="Transparent"
+                                             SelectionChanged="OnFolderSelectionChanged"
+                                             ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                             PreviewMouseWheel="OnFolderListMouseWheel">
+                                        <ListBox.ItemTemplate>
+                                            <DataTemplate DataType="{x:Type vm:FolderNodeViewModel}">
+                                                <DockPanel Margin="{Binding Indent, Converter={x:Static vm:IndentConverter.Instance}}">
+                                                    <TextBlock DockPanel.Dock="Right" Text="{Binding UnreadText}" FontWeight="SemiBold" Foreground="{StaticResource AccentBrush}" Margin="8,0,4,0" />
+                                                    <TextBlock FontFamily="Segoe MDL2 Assets" Text="{Binding Icon}" VerticalAlignment="Center" Margin="0,0,8,0" Foreground="{StaticResource SubtleBrush}" />
+                                                    <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                                                </DockPanel>
+                                            </DataTemplate>
+                                        </ListBox.ItemTemplate>
+                                        <ListBox.ItemContainerStyle>
+                                            <Style TargetType="ListBoxItem">
+                                                <Setter Property="Padding" Value="16,5,8,5" />
+                                                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                                            </Style>
+                                        </ListBox.ItemContainerStyle>
+                                    </ListBox>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <Button Content="＋ アカウントを追加" Command="{Binding AddAccountCommand}" Margin="12,4" HorizontalAlignment="Left" />
+                </StackPanel>
+            </ScrollViewer>
+
+            <GridSplitter Grid.Column="1" Width="4" HorizontalAlignment="Stretch" Background="{StaticResource BorderBrush}" />
+
+            <!-- メール一覧 -->
+            <DockPanel Grid.Column="2">
+                <TextBlock DockPanel.Dock="Top" Text="{Binding ListHeader}" Margin="12,8" FontWeight="SemiBold" />
+                <ListBox x:Name="MessageList"
+                         ItemsSource="{Binding Messages}"
+                         SelectedItem="{Binding SelectedMessage}"
+                         BorderThickness="0,1,0,0" BorderBrush="{StaticResource BorderBrush}"
+                         HorizontalContentAlignment="Stretch"
+                         ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                         ScrollViewer.CanContentScroll="True"
+                         VirtualizingPanel.IsVirtualizing="True"
+                         VirtualizingPanel.VirtualizationMode="Recycling"
+                         VirtualizingPanel.ScrollUnit="Item"
+                         VirtualizingPanel.CacheLength="2,2"
+                         VirtualizingPanel.CacheLengthUnit="Page">
+                    <ListBox.ItemContainerStyle>
+                        <Style TargetType="ListBoxItem">
+                            <Setter Property="Padding" Value="0" />
+                            <Setter Property="BorderThickness" Value="0,0,0,1" />
+                            <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+                        </Style>
+                    </ListBox.ItemContainerStyle>
+                    <ListBox.ItemTemplate>
+                        <DataTemplate DataType="{x:Type vm:MessageItemViewModel}">
+                            <Grid Margin="0,6,10,6" Height="52">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="18" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <Ellipse Grid.Row="0" Width="7" Height="7" Fill="{StaticResource AccentBrush}" VerticalAlignment="Center" HorizontalAlignment="Center"
+                                         Visibility="{Binding IsUnread, Converter={StaticResource BoolToVisibility}}" />
+                                <TextBlock Grid.Column="1" Text="{Binding Sender}" TextTrimming="CharacterEllipsis">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsUnread}" Value="True">
+                                                    <Setter Property="FontWeight" Value="Bold" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                                <StackPanel Grid.Column="2" Orientation="Horizontal" Margin="8,0,0,0">
+                                    <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE723;" Margin="0,0,4,0" VerticalAlignment="Center" Foreground="{StaticResource SubtleBrush}"
+                                               Visibility="{Binding HasAttachments, Converter={StaticResource BoolToVisibility}}" />
+                                    <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE7C1;" Margin="0,0,4,0" VerticalAlignment="Center" Foreground="#D9480F"
+                                               Visibility="{Binding IsFlagged, Converter={StaticResource BoolToVisibility}}" />
+                                    <TextBlock Text="{Binding DateText}" ToolTip="{Binding DateToolTip}" Foreground="{StaticResource SubtleBrush}" FontSize="12" />
+                                </StackPanel>
+                                <TextBlock Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2" Text="{Binding Subject}" TextTrimming="CharacterEllipsis">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsUnread}" Value="True">
+                                                    <Setter Property="FontWeight" Value="SemiBold" />
+                                                    <Setter Property="Foreground" Value="{StaticResource AccentBrush}" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                                <TextBlock Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="2" Text="{Binding Preview}" TextTrimming="CharacterEllipsis" Foreground="{StaticResource SubtleBrush}" FontSize="12" />
+                            </Grid>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </DockPanel>
+
+            <GridSplitter Grid.Column="3" Width="4" HorizontalAlignment="Stretch" Background="{StaticResource BorderBrush}" />
+
+            <!-- 本文 -->
+            <DockPanel Grid.Column="4" Background="White">
+                <StackPanel DockPanel.Dock="Top" Margin="16,12,16,8" DataContext="{Binding Detail}"
+                            Visibility="{Binding Converter={x:Static vm:NullToVisibilityConverter.Instance}}">
+                    <TextBlock Text="{Binding Subject}" FontSize="18" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,0,0,8" />
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <TextBlock Text="差出人" Foreground="{StaticResource SubtleBrush}" Margin="0,0,12,2" />
+                        <TextBox Grid.Column="1" Text="{Binding From, Mode=OneWay}" IsReadOnly="True" BorderThickness="0" Padding="0" Background="Transparent" TextWrapping="Wrap" />
+                        <TextBlock Grid.Row="1" Text="宛先" Foreground="{StaticResource SubtleBrush}" Margin="0,0,12,2" />
+                        <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding To, Mode=OneWay}" IsReadOnly="True" BorderThickness="0" Padding="0" Background="Transparent" TextWrapping="Wrap" />
+                        <TextBlock Grid.Row="2" Text="CC" Foreground="{StaticResource SubtleBrush}" Margin="0,0,12,2" Visibility="{Binding HasCc, Converter={StaticResource BoolToVisibility}}" />
+                        <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding Cc, Mode=OneWay}" IsReadOnly="True" BorderThickness="0" Padding="0" Background="Transparent" TextWrapping="Wrap"
+                                 Visibility="{Binding HasCc, Converter={StaticResource BoolToVisibility}}" />
+                        <TextBlock Grid.Row="3" Text="日時" Foreground="{StaticResource SubtleBrush}" Margin="0,0,12,2" />
+                        <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding DateText}" />
+                    </Grid>
+                    <ItemsControl ItemsSource="{Binding Attachments}" Margin="0,8,0,0"
+                                  Visibility="{Binding HasAttachments, Converter={StaticResource BoolToVisibility}}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="{x:Type vm:AttachmentViewModel}">
+                                <Button Click="OnAttachmentClick" Tag="{Binding}" Margin="0,0,6,6" ToolTip="クリックして保存">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE723;" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                        <TextBlock Text="{Binding FileName}" MaxWidth="260" TextTrimming="CharacterEllipsis" />
+                                    </StackPanel>
+                                </Button>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <Border Background="#FFF8E1" BorderBrush="#F0D58C" BorderThickness="1" Padding="10,6" Margin="0,8,0,0"
+                            Visibility="{Binding ShowRemoteContentBar, Converter={StaticResource BoolToVisibility}}">
+                        <DockPanel>
+                            <Button DockPanel.Dock="Right" Content="画像を表示" Command="{Binding DataContext.ShowRemoteContentCommand, RelativeSource={RelativeSource AncestorType=Window}}" Margin="8,0,0,0" />
+                            <TextBlock Text="プライバシー保護のため、外部の画像を表示していません。" VerticalAlignment="Center" TextWrapping="Wrap" />
+                        </DockPanel>
+                    </Border>
+                </StackPanel>
+                <Grid>
+                    <wv2:WebView2 x:Name="BodyView" />
+                    <TextBlock Text="メールを選択してください" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{StaticResource SubtleBrush}"
+                               Visibility="{Binding Detail, Converter={x:Static vm:NullToVisibilityConverter.InverseInstance}}" />
+                    <ProgressBar IsIndeterminate="True" Height="3" VerticalAlignment="Top"
+                                 Visibility="{Binding IsDetailLoading, Converter={StaticResource BoolToVisibility}}" />
+                </Grid>
+            </DockPanel>
+        </Grid>
+    </DockPanel>
+</Window>

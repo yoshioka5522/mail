@@ -1,0 +1,62 @@
+name: Release
+
+# v0.1.0 のようなタグを push すると、setup.exe と自動更新用のパッケージを GitHub Releases に登録する
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    env:
+      DOTNET_NOLOGO: true
+      DOTNET_CLI_TELEMETRY_OPTOUT: true
+      REPO_URL: ${{ github.server_url }}/${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Read version from tag
+        shell: pwsh
+        run: |
+          $version = "${{ github.ref_name }}".TrimStart("v")
+          "VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Test
+        run: dotnet test tests/Hayabumi.Core.Tests -c Release
+
+      - name: Publish
+        run: dotnet publish src/Hayabumi.App -c Release -o publish -p:Version=${{ env.VERSION }}
+
+      - name: Install Velopack CLI
+        run: dotnet tool install -g vpk --version 1.2.161
+
+      # 前の版を取得して差分更新パッケージを作る（初回は前の版がないため失敗してよい）
+      - name: Download previous release
+        continue-on-error: true
+        run: vpk download github --repoUrl ${{ env.REPO_URL }} --token ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pack
+        run: >
+          vpk pack
+          --packId Hayabumi
+          --packVersion ${{ env.VERSION }}
+          --packDir publish
+          --mainExe Hayabumi.exe
+          --packTitle Hayabumi
+          --packAuthors Hayabumi
+
+      - name: Upload to GitHub Releases
+        run: >
+          vpk upload github
+          --repoUrl ${{ env.REPO_URL }}
+          --token ${{ secrets.GITHUB_TOKEN }}
+          --publish
+          --releaseName "Hayabumi ${{ env.VERSION }}"
+          --tag ${{ github.ref_name }}
