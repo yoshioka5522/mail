@@ -149,9 +149,17 @@
                                 <StackPanel Margin="0,0,0,8">
                                     <TextBlock Text="{Binding Name}" ToolTip="{Binding EmailAddress}" FontWeight="SemiBold" Margin="12,6,8,4" TextTrimming="CharacterEllipsis" />
                                     <ListBox ItemsSource="{Binding Folders}" BorderThickness="0" Background="Transparent"
+                                             ContextMenuOpening="OnFolderContextMenuOpening"
                                              SelectionChanged="OnFolderSelectionChanged"
                                              ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                                              PreviewMouseWheel="OnFolderListMouseWheel">
+                                        <ListBox.ContextMenu>
+                                            <ContextMenu>
+                                                <MenuItem Header="新しいフォルダ(_N)…" Click="OnNewFolderClick" />
+                                                <MenuItem Header="名前の変更(_R)…" Click="OnRenameFolderClick" />
+                                                <MenuItem Header="フォルダの削除(_D)" Click="OnDeleteFolderClick" />
+                                            </ContextMenu>
+                                        </ListBox.ContextMenu>
                                         <ListBox.ItemTemplate>
                                             <DataTemplate DataType="{x:Type vm:FolderNodeViewModel}">
                                                 <DockPanel Margin="{Binding Indent, Converter={x:Static vm:IndentConverter.Instance}}">
@@ -182,6 +190,8 @@
             <DockPanel Grid.Column="2">
                 <TextBlock DockPanel.Dock="Top" Text="{Binding ListHeader}" Margin="12,8" FontWeight="SemiBold" />
                 <ListBox x:Name="MessageList"
+                         SelectionMode="Extended"
+                         ContextMenuOpening="OnMessageContextMenuOpening"
                          ItemsSource="{Binding Messages}"
                          SelectedItem="{Binding SelectedMessage}"
                          BorderThickness="0,1,0,0" BorderBrush="{StaticResource BorderBrush}"
@@ -193,6 +203,19 @@
                          VirtualizingPanel.ScrollUnit="Item"
                          VirtualizingPanel.CacheLength="2,2"
                          VirtualizingPanel.CacheLengthUnit="Page">
+                    <ListBox.ContextMenu>
+                        <ContextMenu>
+                            <MenuItem Header="返信(_R)" Command="{Binding ReplyCommand}" />
+                            <MenuItem Header="全員に返信(_A)" Command="{Binding ReplyAllCommand}" />
+                            <MenuItem Header="転送(_F)" Command="{Binding ForwardCommand}" />
+                            <Separator />
+                            <MenuItem Header="既読/未読の切り替え(_U)" Command="{Binding ToggleReadCommand}" />
+                            <MenuItem Header="フラグの切り替え(_G)" Command="{Binding ToggleFlagCommand}" />
+                            <MenuItem x:Name="MoveMenu" Header="移動(_M)" />
+                            <Separator />
+                            <MenuItem Header="削除(_D)" Command="{Binding DeleteCommand}" />
+                        </ContextMenu>
+                    </ListBox.ContextMenu>
                     <ListBox.ItemContainerStyle>
                         <Style TargetType="ListBoxItem">
                             <Setter Property="Padding" Value="0" />

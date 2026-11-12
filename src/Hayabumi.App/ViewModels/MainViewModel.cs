@@ -90,6 +90,20 @@ public sealed partial class MainViewModel : ObservableObject
 
     public AppServices Services => _services;
 
+    /// <summary>一覧で選んでいるメール（複数選択に対応。画面側が設定する）。</summary>
+    public Func<IReadOnlyList<MessageItemViewModel>>? SelectionProvider { get; set; }
+
+    private List<MessageItemViewModel> SelectedItems()
+    {
+        var items = SelectionProvider?.Invoke().Where(i => i.Id > 0).ToList() ?? [];
+        if (items.Count == 0 && SelectedMessage is { Id: > 0 } single)
+        {
+            items.Add(single);
+        }
+
+        return items;
+    }
+
     /// <summary>本文を表示する前に呼ばれる（画面側で WebView2 に表示する）。</summary>
     public event EventHandler<MessageDetailViewModel?>? DetailChanged;
 
@@ -492,45 +506,151 @@ public sealed partial class MainViewModel : ObservableObject
     [RelayCommand]
     private void ToggleRead()
     {
-        if (SelectedMessage is not { Id: > 0 } item)
+        var items = SelectedItems();
+        if (items.Count == 0)
         {
             return;
         }
 
-        var read = item.IsUnread;
-        _services.Actions.MarkRead([item.Item], read);
-        item.IsUnread = !read;
+        // 1 通でも未読があれば既読に、すべて既読なら未読にする
+        var read = items.Any(i => i.IsUnread);
+        _services.Actions.MarkRead([.. items.Select(i => i.Item)], read);
+        foreach (var item in items)
+        {
+            item.IsUnread = !read;
+        }
+
         RefreshFolderCounts();
     }
 
     [RelayCommand]
     private void ToggleFlag()
     {
-        if (SelectedMessage is not { Id: > 0 } item)
+        var items = SelectedItems();
+        if (items.Count == 0)
         {
             return;
         }
 
-        var flag = !item.IsFlagged;
-        _services.Actions.SetFlags([item.Item], MessageFlags.Flagged, flag);
-        item.IsFlagged = flag;
+        var flag = items.Any(i => !i.IsFlagged);
+        _services.Actions.SetFlags([.. items.Select(i => i.Item)], MessageFlags.Flagged, flag);
+        foreach (var item in items)
+        {
+            item.IsFlagged = flag;
+        }
     }
 
     [RelayCommand]
     private void Delete()
     {
-        if (SelectedMessage is not { Id: > 0 } item)
+        var items = SelectedItems();
+        if (items.Count == 0)
         {
             return;
         }
 
-        var index = Messages?.IndexOf(item) ?? -1;
-        _services.Actions.Delete([item.Item]);
+        var index = Messages?.IndexOf(items[0]) ?? -1;
+        try
+        {
+            _services.Actions.Delete([.. items.Select(i => i.Item)]);
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or NotSupportedException)
+        {
+            StatusText = ex.Message;
+            return;
+        }
+
+        AfterRemoval(index);
+    }
+
+    /// <summary>選んでいるメールを別のフォルダへ移動する。</summary>
+    public void MoveSelected(Folder destination)
+    {
+        var items = SelectedItems();
+        if (items.Count == 0)
+        {
+            return;
+        }
+
+        var index = Messages?.IndexOf(items[0]) ?? -1;
+        try
+        {
+            _services.Actions.Move([.. items.Select(i => i.Item)], destination);
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or NotSupportedException)
+        {
+            StatusText = ex.Message;
+            return;
+        }
+
+        StatusText = $"{items.Count} 通を「{destination.DisplayName}」へ移動しました";
+        AfterRemoval(index);
+    }
+
+    /// <summary>移動先の候補（選んでいるメールと同じアカウントの、ほかのフォルダ）。</summary>
+    public IReadOnlyList<FolderNodeViewModel> MoveTargets()
+    {
+        var current = SelectedItems().FirstOrDefault()?.Item;
+        if (current is null)
+        {
+            return [];
+        }
+
+        return [.. Accounts.Where(a => a.Account.Id == current.AccountId).SelectMany(a => a.Folders).Where(f => f.Id != current.FolderId)];
+    }
+
+    private void AfterRemoval(int index)
+    {
         RefreshFolderCounts();
         ReloadList();
         if (Messages is { Count: > 0 } list && index >= 0)
         {
             SelectedMessage = list[Math.Min(index, list.Count - 1)] as MessageItemViewModel;
+        }
+    }
+
+    public async Task<string?> CreateFolderAsync(AccountNodeViewModel node, FolderNodeViewModel? parent, string name)
+        => await RunFolderOperationAsync(node, () => _services.FolderOperations.CreateAsync(node.Account, parent?.Folder, name), $"フォルダ「{name}」を作りました");
+
+    public async Task<string?> RenameFolderAsync(FolderNodeViewModel folder, string newName)
+    {
+        var node = Accounts.First(a => a.Account.Id == folder.Folder.AccountId);
+        return await RunFolderOperationAsync(node, () => _services.FolderOperations.RenameAsync(node.Account, folder.Folder, newName), $"フォルダの名前を「{newName}」に変えました");
+    }
+
+    public async Task<string?> DeleteFolderAsync(FolderNodeViewModel folder)
+    {
+        var node = Accounts.First(a => a.Account.Id == folder.Folder.AccountId);
+        return await RunFolderOperationAsync(node, async () =>
+        {
+            await _services.FolderOperations.DeleteAsync(node.Account, folder.Folder);
+            return folder.Folder;
+        }, $"フォルダ「{folder.Name}」を削除しました");
+    }
+
+    /// <returns>エラーがあればその説明。</returns>
+    private async Task<string?> RunFolderOperationAsync(AccountNodeViewModel node, Func<Task<Folder>> operation, string done)
+    {
+        if (!await _services.SyncLock.WaitAsync(TimeSpan.FromSeconds(30)))
+        {
+            return "同期中のため、しばらくしてからもう一度お試しください。";
+        }
+
+        try
+        {
+            await Task.Run(operation);
+            StatusText = done;
+            return null;
+        }
+        catch (Exception ex)
+        {
+            Log.Error("フォルダの操作に失敗しました", ex);
+            return ex.Message;
+        }
+        finally
+        {
+            _services.SyncLock.Release();
+            RefreshFolders(node);
         }
     }
 

@@ -30,6 +30,7 @@ public partial class MainWindow : Window
         InitializeComponent();
 
         viewModel.DetailChanged += (_, detail) => ShowDetail(detail);
+        viewModel.SelectionProvider = () => [.. MessageList.SelectedItems.OfType<MessageItemViewModel>()];
         viewModel.AddAccountRequested += (_, _) => OpenAddAccount();
         viewModel.ComposeRequested += (_, draft) => OpenCompose(draft);
         viewModel.PropertyChanged += (_, e) =>
@@ -189,6 +190,77 @@ public partial class MainWindow : Window
         finally
         {
             _changingFolderSelection = false;
+        }
+    }
+
+    private void OnMessageContextMenuOpening(object sender, ContextMenuEventArgs e)
+    {
+        // 移動先は開くたびに作る（フォルダが増減するため）
+        var moveMenu = (MenuItem)MessageList.ContextMenu.Items.OfType<MenuItem>().Single(m => m.Name == "MoveMenu");
+        moveMenu.Items.Clear();
+        foreach (var target in _viewModel.MoveTargets())
+        {
+            var item = new MenuItem { Header = target.Name, Tag = target };
+            item.Click += (_, _) => _viewModel.MoveSelected(target.Folder);
+            moveMenu.Items.Add(item);
+        }
+
+        moveMenu.IsEnabled = moveMenu.Items.Count > 0;
+    }
+
+    private FolderNodeViewModel? _contextFolder;
+    private AccountNodeViewModel? _contextAccount;
+
+    private void OnFolderContextMenuOpening(object sender, ContextMenuEventArgs e)
+    {
+        var list = (ListBox)sender;
+        _contextAccount = list.DataContext as AccountNodeViewModel;
+        _contextFolder = (e.OriginalSource as FrameworkElement)?.DataContext as FolderNodeViewModel ?? list.SelectedItem as FolderNodeViewModel;
+        var items = list.ContextMenu.Items.OfType<MenuItem>().ToList();
+        items[1].IsEnabled = _contextFolder?.IsEditable == true;
+        items[2].IsEnabled = _contextFolder?.IsEditable == true;
+    }
+
+    private async void OnNewFolderClick(object sender, RoutedEventArgs e)
+    {
+        if (_contextAccount is null)
+        {
+            return;
+        }
+
+        var parent = _contextFolder?.IsEditable == true ? _contextFolder : null;
+        var prompt = parent is null ? "新しいフォルダの名前" : $"「{parent.Name}」の中に作るフォルダの名前";
+        if (InputDialog.Ask(this, "新しいフォルダ", prompt) is { } name)
+        {
+            ShowError(await _viewModel.CreateFolderAsync(_contextAccount, parent, name));
+        }
+    }
+
+    private async void OnRenameFolderClick(object sender, RoutedEventArgs e)
+    {
+        if (_contextFolder is { IsEditable: true } folder && InputDialog.Ask(this, "名前の変更", "新しい名前", folder.Name) is { } name)
+        {
+            ShowError(await _viewModel.RenameFolderAsync(folder, name));
+        }
+    }
+
+    private async void OnDeleteFolderClick(object sender, RoutedEventArgs e)
+    {
+        if (_contextFolder is not { IsEditable: true } folder ||
+            MessageBox.Show(this, $"フォルダ「{folder.Name}」と、中のメールをすべて削除しますか？\nこの操作は元に戻せません。", "フォルダの削除",
+                MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        ShowError(await _viewModel.DeleteFolderAsync(folder));
+    }
+
+    private void ShowError(string? message)
+    {
+        if (message is not null)
+        {
+            MessageBox.Show(this, message, "Hayabumi", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
     }
 

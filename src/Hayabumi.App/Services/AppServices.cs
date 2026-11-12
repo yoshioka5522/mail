@@ -34,6 +34,7 @@ public sealed class AppServices : IDisposable
         Sessions = new ImapSessionFactory(secrets);
         Pop3Sessions = new Pop3SessionFactory(secrets);
         Actions = new MailActions(Folders, Messages, Pending, Files);
+        FolderOperations = new FolderService(Sessions, Folders, Messages, Files);
         Updates = new UpdateService(Credentials);
         Drafts = new DraftRepository(Database, location.Root);
         Outbox = new OutboxRepository(Database);
@@ -60,6 +61,7 @@ public sealed class AppServices : IDisposable
     public IMailStoreSessionFactory Sessions { get; }
     public IPop3SessionFactory Pop3Sessions { get; }
     public MailActions Actions { get; }
+    public FolderService FolderOperations { get; }
     public UpdateService Updates { get; }
     public DraftRepository Drafts { get; }
     public OutboxRepository Outbox { get; }

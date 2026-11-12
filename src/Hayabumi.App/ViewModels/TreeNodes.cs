@@ -66,5 +66,10 @@ public sealed partial class FolderNodeViewModel : ObservableObject
     {
         Folder = folder;
         UnreadCount = folder.UnreadCount;
+        OnPropertyChanged(nameof(Name));
+        OnPropertyChanged(nameof(Indent));
     }
+
+    /// <summary>名前の変更や削除ができるフォルダか（受信トレイなどの特別なフォルダは不可）。</summary>
+    public bool IsEditable => Folder.Role == FolderRole.None;
 }
