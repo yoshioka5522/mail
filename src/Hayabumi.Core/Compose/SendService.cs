@@ -26,7 +26,8 @@ public sealed class SendService(
     MessageFileStore files,
     IMailSender sender,
     IMailStoreSessionFactory sessions,
-    MailActions actions) : IDisposable
+    MailActions actions,
+    Contacts.ContactRepository? contacts = null) : IDisposable
 {
     public const int MaxAttempts = 5;
 
@@ -133,6 +134,7 @@ public sealed class SendService(
 
         // ここから先は送信済み。失敗しても再送はしない
         outbox.Remove(item.Id);
+        contacts?.RecordUsage(message.To.Mailboxes.Concat(message.Cc.Mailboxes).Concat(message.Bcc.Mailboxes), sent: true);
         try
         {
             await SaveSentCopyAsync(account, message, cancellationToken).ConfigureAwait(false);
