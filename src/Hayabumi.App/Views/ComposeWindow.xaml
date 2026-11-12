@@ -14,29 +14,29 @@
         <CommandBinding Command="{x:Static local:ComposeWindow.SaveCommand}" Executed="OnSaveExecuted" />
     </Window.CommandBindings>
     <DockPanel>
-        <Border DockPanel.Dock="Top" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1" Padding="8,6">
+        <Border DockPanel.Dock="Top" Background="{StaticResource PaneBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1" Padding="10,8">
             <StackPanel Orientation="Horizontal">
-                <Button Margin="0,0,8,0" MinWidth="80" x:Name="SendButton" Click="OnSendClick" ToolTip="送信 (Ctrl+Enter)">
+                <Button Style="{StaticResource PrimaryButton}" x:Name="SendButton" Click="OnSendClick" ToolTip="送信 (Ctrl+Enter)">
                     <StackPanel Orientation="Horizontal">
-                        <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE724;" VerticalAlignment="Center" Margin="0,0,6,0" />
-                        <TextBlock Text="送信" FontWeight="SemiBold" />
+                        <TextBlock FontFamily="{StaticResource IconFont}" Text="&#xE724;" VerticalAlignment="Center" Margin="0,0,6,0" />
+                        <TextBlock Text="送信" FontWeight="SemiBold" Foreground="White" />
                     </StackPanel>
                 </Button>
-                <Button Margin="0,0,8,0" MinWidth="80" Click="OnAttachClick" ToolTip="ファイルを添付（ドラッグ＆ドロップでも添付できます）">
+                <Button Style="{StaticResource ToolbarButton}" Click="OnAttachClick" ToolTip="ファイルを添付（ドラッグ＆ドロップでも添付できます）">
                     <StackPanel Orientation="Horizontal">
-                        <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE723;" VerticalAlignment="Center" Margin="0,0,6,0" />
+                        <TextBlock FontFamily="{StaticResource IconFont}" Text="&#xE723;" VerticalAlignment="Center" Margin="0,0,6,0" />
                         <TextBlock Text="添付" />
                     </StackPanel>
                 </Button>
-                <Button Margin="0,0,8,0" MinWidth="80" Click="OnSaveClick" ToolTip="下書きに保存 (Ctrl+S)">
+                <Button Style="{StaticResource ToolbarButton}" Click="OnSaveClick" ToolTip="下書きに保存 (Ctrl+S)">
                     <StackPanel Orientation="Horizontal">
-                        <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE74E;" VerticalAlignment="Center" Margin="0,0,6,0" />
+                        <TextBlock FontFamily="{StaticResource IconFont}" Text="&#xE74E;" VerticalAlignment="Center" Margin="0,0,6,0" />
                         <TextBlock Text="下書き保存" />
                     </StackPanel>
                 </Button>
-                <Button Margin="0,0,8,0" MinWidth="80" Click="OnDiscardClick" ToolTip="この下書きを破棄">
+                <Button Style="{StaticResource ToolbarButton}" Click="OnDiscardClick" ToolTip="この下書きを破棄">
                     <StackPanel Orientation="Horizontal">
-                        <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE74D;" VerticalAlignment="Center" Margin="0,0,6,0" />
+                        <TextBlock FontFamily="{StaticResource IconFont}" Text="&#xE74D;" VerticalAlignment="Center" Margin="0,0,6,0" />
                         <TextBlock Text="破棄" />
                     </StackPanel>
                 </Button>
@@ -83,10 +83,10 @@
                 <DataTemplate>
                     <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="3" Padding="6,2" Margin="0,0,6,4">
                         <StackPanel Orientation="Horizontal">
-                            <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE723;" VerticalAlignment="Center" Margin="0,0,6,0" />
+                            <TextBlock FontFamily="{StaticResource IconFont}" Text="&#xE723;" VerticalAlignment="Center" Margin="0,0,6,0" />
                             <TextBlock Text="{Binding Name}" VerticalAlignment="Center" MaxWidth="240" TextTrimming="CharacterEllipsis" />
                             <TextBlock Text="{Binding SizeText}" VerticalAlignment="Center" Foreground="{StaticResource SubtleBrush}" Margin="6,0" />
-                            <Button Content="×" MinWidth="0" Padding="4,0" Margin="0" Click="OnRemoveAttachmentClick" Tag="{Binding Path}" ToolTip="添付を外す" />
+                            <Button Content="&#xE711;" FontFamily="{StaticResource IconFont}" FontSize="10" Style="{StaticResource ToolbarButton}" Padding="4,2" Margin="0" Click="OnRemoveAttachmentClick" Tag="{Binding Path}" ToolTip="添付を外す" />
                         </StackPanel>
                     </Border>
                 </DataTemplate>
