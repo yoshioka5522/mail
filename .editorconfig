@@ -1,0 +1,23 @@
+root = true
+
+[*]
+charset = utf-8
+insert_final_newline = true
+indent_style = space
+indent_size = 4
+
+[*.{json,yml,yaml,props,targets,csproj,xml}]
+indent_size = 2
+
+[*.{yml,yaml,sh}]
+end_of_line = lf
+
+[*.cs]
+# 名前の末尾が Flags の列挙型を許可する（MessageFlags は IMAP の用語に合わせている）
+dotnet_diagnostic.CA1711.severity = none
+# ローカライズは日本語のみのため、リソース化しない
+dotnet_diagnostic.CA1303.severity = none
+# ライブラリの公開 API ではないため、ConfigureAwait 以外の細かな規則は緩める
+dotnet_diagnostic.CA1062.severity = none
+dotnet_diagnostic.CA1848.severity = none
+dotnet_diagnostic.CA2007.severity = none

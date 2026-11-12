@@ -1,0 +1,16 @@
+<Project>
+  <PropertyGroup>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <AnalysisLevel>latest-recommended</AnalysisLevel>
+    <!-- Linux 上でも Windows 向けプロジェクトをビルドできるようにする（実行は Windows のみ） -->
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <Company>Hayabumi</Company>
+    <Product>Hayabumi</Product>
+    <Copyright>Copyright (c) Hayabumi. All rights reserved.</Copyright>
+    <Version>0.1.0</Version>
+    <SatelliteResourceLanguages>ja</SatelliteResourceLanguages>
+  </PropertyGroup>
+</Project>
