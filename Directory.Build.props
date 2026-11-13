@@ -10,7 +10,7 @@
     <Company>Hayabumi</Company>
     <Product>Hayabumi</Product>
     <Copyright>Copyright (c) Hayabumi. All rights reserved.</Copyright>
-    <Version>0.3.3</Version>
+    <Version>0.3.4</Version>
     <SatelliteResourceLanguages>ja</SatelliteResourceLanguages>
   </PropertyGroup>
 </Project>
