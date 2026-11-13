@@ -16,6 +16,7 @@ public partial class App : Application
     {
         base.OnStartup(e);
         DispatcherUnhandledException += OnDispatcherUnhandledException;
+        WindowFit.RegisterForAllWindows();
         AppDomain.CurrentDomain.UnhandledException += (_, args) => Log.Error("未処理の例外", args.ExceptionObject as Exception);
         TaskScheduler.UnobservedTaskException += (_, args) =>
         {
@@ -86,11 +87,6 @@ public partial class App : Application
         })
         { IsBackground = true, Name = "Hayabumi.ShowSignal" };
         listener.Start();
-
-        if (e.Args.Contains("--screenshot"))
-        {
-            window.WindowState = WindowState.Maximized;
-        }
 
         var startMinimized = e.Args.Contains("--minimized");
         if (!startMinimized)

@@ -4,6 +4,7 @@
         FontFamily="{StaticResource UiFont}" FontSize="13"
         Title="アカウントの追加" Width="560" SizeToContent="Height" ResizeMode="NoResize"
         WindowStartupLocation="CenterOwner" ShowInTaskbar="False">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
     <StackPanel Margin="20">
         <TextBlock Text="Gmail は［Google でサインイン］で追加できます（パスワードの入力や設定は不要です）。" Margin="0,0,0,4" TextWrapping="Wrap" />
         <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="{StaticResource SubtleBrush}" Margin="0,0,0,8">
@@ -91,4 +92,5 @@
             <Button MinWidth="80" Content="キャンセル" IsCancel="True" Margin="0" />
         </StackPanel>
     </StackPanel>
+    </ScrollViewer>
 </Window>
