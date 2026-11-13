@@ -5,11 +5,10 @@
         Title="アカウントの追加" Width="560" SizeToContent="Height" ResizeMode="NoResize"
         WindowStartupLocation="CenterOwner" ShowInTaskbar="False">
     <StackPanel Margin="20">
-        <TextBlock Text="Outlook.com・Microsoft 365 は、サインインで追加できます。" Margin="0,0,0,4" />
+        <TextBlock Text="Gmail は［Google でサインイン］で追加できます（パスワードの入力や設定は不要です）。" Margin="0,0,0,4" TextWrapping="Wrap" />
         <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="{StaticResource SubtleBrush}" Margin="0,0,0,8">
-            「Google でサインイン」は、開発者が登録した利用者だけが使えます。それ以外の Gmail は、下の欄にメールアドレスと
-            <Hyperlink NavigateUri="https://myaccount.google.com/apppasswords" RequestNavigate="OnRequestNavigate">アプリ パスワード</Hyperlink>
-            （2 段階認証の設定が必要）を入力して追加してください。
+            ブラウザーで「このアプリは Google で確認されていません」と表示されたら、［詳細］→［Hayabumi（安全ではないページ）に移動］を選び、
+            Gmail へのアクセスを許可してください。Gmail アカウントが複数ある場合は、追加したい数だけ繰り返します。
         </TextBlock>
         <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
             <Button Margin="0,0,8,0" MinWidth="80" x:Name="GoogleButton" Content="Google でサインイン" Click="OnGoogleClick" Padding="14,6" />

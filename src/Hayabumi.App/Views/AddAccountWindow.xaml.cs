@@ -211,6 +211,12 @@ public partial class AddAccountWindow : Window
             };
 
             await Task.Run(() => AppServices.TestConnectionAsync(account, result.Tokens.AccessToken, _connecting.Token));
+            if (_services.Accounts.GetAll().Any(a => string.Equals(a.EmailAddress, email, StringComparison.OrdinalIgnoreCase)))
+            {
+                ShowError($"{email} は既に追加されています。別のアカウントを追加するには、ブラウザーでアカウントを選ぶ画面で別のアカウントを選んでください。");
+                return;
+            }
+
             var saved = _services.Accounts.Add(account);
             AccountSecretProvider.SaveTokens(_services.Credentials, saved, result.Tokens);
             Log.Info($"アカウントを追加しました（{provider.Name} でサインイン）: {saved.EmailAddress}");

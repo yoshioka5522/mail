@@ -37,7 +37,8 @@ public sealed class OAuthClient(HttpClient http)
             ["state"] = state,
             ["code_challenge"] = challenge,
             ["code_challenge_method"] = "S256",
-            ["prompt"] = provider.Method == Accounts.AuthMethod.OAuthGoogle ? "consent" : "select_account",
+            // 複数のアカウントを追加できるよう、毎回アカウントを選ぶ画面を出す（Google は許可の画面も毎回出してリフレッシュ トークンを受け取る）
+            ["prompt"] = provider.Method == Accounts.AuthMethod.OAuthGoogle ? "select_account consent" : "select_account",
         };
         if (provider.Method == Accounts.AuthMethod.OAuthGoogle)
         {
