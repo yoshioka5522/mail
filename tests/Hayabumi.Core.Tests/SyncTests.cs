@@ -296,3 +296,39 @@ public sealed class CopiesTests : IDisposable
         Assert.All(new[] { inbox, all, unread }, f => Assert.Equal(MessageFlags.Seen, f.Messages.Values.Single().Flags));
     }
 }
+
+public sealed class PrefetchTests : IDisposable
+{
+    private readonly TestDatabase _db = new();
+
+    public void Dispose() => _db.Dispose();
+
+    [Fact]
+    public async Task Prefetch_only_downloads_recent_messages_and_skips_folders_without_work()
+    {
+        var server = new FakeMailServer();
+        var account = _db.AddAccount();
+        var inbox = server.AddFolder("INBOX", FolderRole.Inbox);
+        server.AddFolder("Archive", FolderRole.Archive);
+        for (var i = 0; i < 10; i++)
+        {
+            inbox.Add(FakeMessage.Create($"m{i}", minutesAgo: 100 - i));
+        }
+
+        var options = new SyncOptions { BodyPrefetchWindow = 4, BodyDownloadBatch = 3 };
+        var synchronizer = new AccountSynchronizer(server, _db.Folders, _db.Messages, _db.Pending, _db.Files, options);
+        await synchronizer.SyncAsync(account, null, TestContext.Current.CancellationToken);
+
+        Assert.Equal(3, await synchronizer.PrefetchBodiesAsync(account, cancellationToken: TestContext.Current.CancellationToken));
+        Assert.Equal(1, await synchronizer.PrefetchBodiesAsync(account, cancellationToken: TestContext.Current.CancellationToken));
+
+        var connectsBefore = server.ConnectCount;
+        Assert.Equal(0, await synchronizer.PrefetchBodiesAsync(account, cancellationToken: TestContext.Current.CancellationToken));
+        Assert.Equal(connectsBefore, server.ConnectCount);
+
+        var local = _db.Folders.GetByAccount(account.Id).Single(f => f.Role == FolderRole.Inbox);
+        var page = _db.Messages.GetPage(local.Id, 0, 10);
+        Assert.All(page.Take(4), m => Assert.Equal(BodyState.Downloaded, m.BodyState));
+        Assert.All(page.Skip(4), m => Assert.Equal(BodyState.HeadersOnly, m.BodyState));
+    }
+}

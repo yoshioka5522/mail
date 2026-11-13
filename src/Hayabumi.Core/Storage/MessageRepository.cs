@@ -374,12 +374,16 @@ public sealed class MessageRepository(MailDatabase database)
     }
 
     /// <summary>本文が未取得のメッセージを新しい順に取得する。</summary>
-    public IReadOnlyList<(long Id, uint Uid, long Size)> GetMessagesWithoutBody(long folderId, int limit, long maxSize = long.MaxValue)
+    public IReadOnlyList<(long Id, uint Uid, long Size)> GetMessagesWithoutBody(long folderId, int limit, long maxSize = long.MaxValue, int window = int.MaxValue)
     {
         using var connection = database.Open();
         using var command = connection.CreateCommand(
-            "SELECT id, uid, size FROM messages WHERE folder_id = $f AND body_state = 0 AND uid IS NOT NULL AND size <= $max ORDER BY date_utc DESC LIMIT $limit;",
-            ("$f", folderId), ("$limit", limit), ("$max", maxSize));
+            """
+            SELECT id, uid, size FROM (
+                SELECT id, uid, size, body_state, date_utc FROM messages WHERE folder_id = $f ORDER BY date_utc DESC, id DESC LIMIT $window)
+            WHERE body_state = 0 AND uid IS NOT NULL AND size <= $max ORDER BY date_utc DESC LIMIT $limit;
+            """,
+            ("$f", folderId), ("$limit", limit), ("$max", maxSize), ("$window", window));
         using var reader = command.ExecuteReader();
         var result = new List<(long, uint, long)>();
         while (reader.Read())

@@ -95,7 +95,7 @@ public sealed class FolderSynchronizer(FolderRepository folders, MessageReposito
         ArgumentNullException.ThrowIfNull(local);
 
         var downloaded = 0;
-        foreach (var (id, uid, _) in messages.GetMessagesWithoutBody(local.Id, options.BodyDownloadBatch, options.MaxAutoDownloadSize))
+        foreach (var (id, uid, _) in messages.GetMessagesWithoutBody(local.Id, options.BodyDownloadBatch, options.MaxAutoDownloadSize, options.BodyPrefetchWindow))
         {
             cancellationToken.ThrowIfCancellationRequested();
             if (await DownloadBodyAsync(remote, local.AccountId, id, uid, cancellationToken).ConfigureAwait(false))

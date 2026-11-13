@@ -75,6 +75,8 @@ public sealed class ImapIntegrationTests : IDisposable
         var first = await synchronizer.SyncAsync(account, null, Ct);
         Assert.Empty(first.Errors);
         Assert.Equal(3, first.Added);
+        Assert.Equal(3, await synchronizer.PrefetchBodiesAsync(account, cancellationToken: Ct));
+        Assert.Equal(0, await synchronizer.PrefetchBodiesAsync(account, cancellationToken: Ct));
 
         var folders = _db.Folders.GetByAccount(account.Id);
         var inbox = folders.Single(f => f.Role == FolderRole.Inbox);

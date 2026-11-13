@@ -62,23 +62,53 @@ public sealed class AccountSynchronizer(
             }
         }
 
-        // 一覧がそろってから、新しいメールの本文を取得する
-        foreach (var folder in localFolders.Where(f => f.Role is FolderRole.Inbox or FolderRole.Sent or FolderRole.None))
+        return new AccountSyncResult(account.Id, results, errors);
+    }
+
+    /// <summary>
+    /// 新しいメールの本文を前もって取得する（開いたときにすぐ表示でき、オフラインでも読めるように）。
+    /// 対象はフォルダごとに新しい <see cref="SyncOptions.BodyPrefetchWindow"/> 通まで。古いメールは開いたときに取得する。
+    /// 一覧の同期とは別に、画面を止めずに後から行う。
+    /// </summary>
+    /// <returns>取得した件数。</returns>
+    public async Task<int> PrefetchBodiesAsync(Account account, Func<Folder, bool>? folderFilter = null, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(account);
+        if (account.IncomingProtocol != IncomingProtocol.Imap)
+        {
+            return 0;
+        }
+
+        // 本文が足りないフォルダだけを開く（毎回すべてのフォルダを開かない）
+        var targets = folders.GetByAccount(account.Id)
+            .Where(f => f.Role is FolderRole.Inbox or FolderRole.Sent or FolderRole.None && !f.IsLocal)
+            .Where(f => folderFilter is null || folderFilter(f))
+            .Where(f => messages.GetMessagesWithoutBody(f.Id, 1, options.MaxAutoDownloadSize, options.BodyPrefetchWindow).Count > 0)
+            .OrderBy(f => f.Role == FolderRole.Inbox ? 0 : 1)
+            .ToList();
+        if (targets.Count == 0)
+        {
+            return 0;
+        }
+
+        var synchronizer = new FolderSynchronizer(folders, messages, files, options);
+        var downloaded = 0;
+        await using var session = await sessionFactory.ConnectAsync(account, cancellationToken).ConfigureAwait(false);
+        foreach (var folder in targets)
         {
             cancellationToken.ThrowIfCancellationRequested();
             try
             {
-                var current = folders.Get(folder.Id) ?? folder;
                 await using var remote = await session.OpenFolderAsync(folder.FullName, writable: false, cancellationToken).ConfigureAwait(false);
-                await synchronizer.DownloadBodiesAsync(remote, current, cancellationToken).ConfigureAwait(false);
+                downloaded += await synchronizer.DownloadBodiesAsync(remote, folder, cancellationToken).ConfigureAwait(false);
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                errors.Add($"{folder.DisplayName}: {ex.Message}");
+                // 本文の先読みに失敗しても、開いたときに取得できるため続ける
             }
         }
 
-        return new AccountSyncResult(account.Id, results, errors);
+        return downloaded;
     }
 
     /// <summary>

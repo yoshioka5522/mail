@@ -344,6 +344,8 @@ public sealed partial class MainViewModel : ObservableObject
             StatusText = $"{time} 同期しました";
         }
 
+        StartBodyPrefetch(nodes, inboxOnly);
+
         if (_inboxResyncRequested.Count > 0)
         {
             var pending = _inboxResyncRequested.ToList();
@@ -353,6 +355,56 @@ public sealed partial class MainViewModel : ObservableObject
                 await SyncInboxAsync(id);
             }
         }
+    }
+
+    private int _prefetchRunning;
+
+    /// <summary>
+    /// 新しいメールの本文を、画面の表示を止めずに後から取得する（状態の表示は「同期中」にしない）。
+    /// </summary>
+    private void StartBodyPrefetch(List<AccountNodeViewModel> nodes, bool inboxOnly)
+    {
+        if (OfflineDemo || Interlocked.Exchange(ref _prefetchRunning, 1) == 1)
+        {
+            return;
+        }
+
+        var accounts = nodes.Select(n => n.Account).ToList();
+        _ = Task.Run(async () =>
+        {
+            var downloaded = 0;
+            try
+            {
+                foreach (var account in accounts)
+                {
+                    try
+                    {
+                        Func<Folder, bool>? filter = inboxOnly ? f => f.Role == FolderRole.Inbox : null;
+                        downloaded += await _services.CreateAccountSynchronizer().PrefetchBodiesAsync(account, filter);
+                    }
+                    catch (Exception ex)
+                    {
+                        Log.Info($"本文の先読みに失敗しました（{account.EmailAddress}）: {ex.Message}");
+                    }
+                }
+            }
+            finally
+            {
+                Interlocked.Exchange(ref _prefetchRunning, 0);
+            }
+
+            if (downloaded > 0)
+            {
+                // 本文の冒頭（プレビュー）が増えたため、一覧を表示し直す
+                System.Windows.Application.Current?.Dispatcher.BeginInvoke(() =>
+                {
+                    if (string.IsNullOrEmpty(SearchText))
+                    {
+                        RefreshListKeepingSelection();
+                    }
+                });
+            }
+        });
     }
 
     /// <summary>新着メールがあった（タイトル, 本文）。通知の表示に使う。</summary>

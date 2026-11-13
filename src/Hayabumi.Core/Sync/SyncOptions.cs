@@ -19,8 +19,11 @@ public sealed record SyncOptions
     /// <summary>自動で本文を取得するメールの最大サイズ（これより大きいものは開いたときに取得する）。</summary>
     public long MaxAutoDownloadSize { get; init; } = 10 * 1024 * 1024;
 
-    /// <summary>1 回の同期で本文を取得する最大件数（フォルダごと）。</summary>
-    public int BodyDownloadBatch { get; init; } = 200;
+    /// <summary>1 回の先読みで本文を取得する最大件数（フォルダごと）。</summary>
+    public int BodyDownloadBatch { get; init; } = 100;
+
+    /// <summary>本文を前もって取得する範囲（フォルダごとに新しい順でこの件数まで）。それより古いメールは開いたときに取得する。</summary>
+    public int BodyPrefetchWindow { get; init; } = 300;
 }
 
 public sealed record FolderSyncResult
