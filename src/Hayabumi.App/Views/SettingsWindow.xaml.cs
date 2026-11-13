@@ -13,6 +13,8 @@ public partial class SettingsWindow : Window
     private readonly AppServices _services;
     private readonly Dictionary<long, (string Name, string Signature, string Password)> _edits = [];
     private Account? _current;
+    private System.Collections.ObjectModel.ObservableCollection<Account> _order = [];
+    private bool _orderChanged;
 
     public SettingsWindow(AppServices services)
     {
@@ -23,12 +25,14 @@ public partial class SettingsWindow : Window
         IntervalBox.Text = settings.SyncIntervalMinutes.ToString(CultureInfo.InvariantCulture);
         UndoBox.Text = settings.UndoSendSeconds.ToString(CultureInfo.InvariantCulture);
         CloseToTrayBox.IsChecked = settings.CloseToTray;
+        AlwaysShowImagesBox.IsChecked = settings.AlwaysShowRemoteImages;
         StartWithWindowsBox.IsChecked = AppSettings.StartWithWindows;
         StartWithWindowsBox.IsEnabled = AppSettings.IsInstalledCopy;
         DomainsBox.Text = string.Join(Environment.NewLine, settings.InternalDomains);
         DataFolderBox.Text = services.Location.Root;
 
-        AccountList.ItemsSource = services.Accounts.GetAll();
+        _order = new System.Collections.ObjectModel.ObservableCollection<Account>(services.Accounts.GetAll());
+        AccountList.ItemsSource = _order;
         if (AccountList.Items.Count > 0)
         {
             AccountList.SelectedIndex = 0;
@@ -99,7 +103,26 @@ public partial class SettingsWindow : Window
         }
 
         AccountsChanged = true;
-        AccountList.ItemsSource = _services.Accounts.GetAll();
+        _order.Remove(_order.First(a => a.Id == account.Id));
+    }
+
+    private void OnMoveUpClick(object sender, RoutedEventArgs e) => MoveSelected(-1);
+
+    private void OnMoveDownClick(object sender, RoutedEventArgs e) => MoveSelected(1);
+
+    private void MoveSelected(int delta)
+    {
+        var index = AccountList.SelectedIndex;
+        var target = index + delta;
+        if (index < 0 || target < 0 || target >= _order.Count)
+        {
+            return;
+        }
+
+        KeepCurrentEdits();
+        _order.Move(index, target);
+        AccountList.SelectedIndex = target;
+        _orderChanged = true;
     }
 
     private async void OnReSignInClick(object sender, RoutedEventArgs e)
@@ -183,6 +206,7 @@ public partial class SettingsWindow : Window
         settings.SyncIntervalMinutes = interval;
         settings.UndoSendSeconds = undo;
         settings.CloseToTray = CloseToTrayBox.IsChecked == true;
+        settings.AlwaysShowRemoteImages = AlwaysShowImagesBox.IsChecked == true;
         settings.InternalDomains = [.. DomainsBox.Text.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)];
         if (StartWithWindowsBox.IsEnabled)
         {
@@ -190,18 +214,28 @@ public partial class SettingsWindow : Window
         }
 
         KeepCurrentEdits();
+        var positions = _order.Select((a, i) => (a.Id, i)).ToDictionary(x => x.Id, x => x.i);
         foreach (var account in _services.Accounts.GetAll())
         {
-            if (!_edits.TryGetValue(account.Id, out var edit))
+            var hasEdit = _edits.TryGetValue(account.Id, out var edit);
+            var sortOrder = positions.GetValueOrDefault(account.Id, account.SortOrder);
+            if (!hasEdit && (!_orderChanged || sortOrder == account.SortOrder))
             {
                 continue;
             }
 
             _services.Accounts.Update(account with
             {
-                DisplayName = string.IsNullOrWhiteSpace(edit.Name) ? account.EmailAddress : edit.Name,
-                Signature = edit.Signature.TrimEnd(),
+                DisplayName = hasEdit ? (string.IsNullOrWhiteSpace(edit.Name) ? account.EmailAddress : edit.Name) : account.DisplayName,
+                Signature = hasEdit ? edit.Signature.TrimEnd() : account.Signature,
+                SortOrder = _orderChanged ? sortOrder : account.SortOrder,
             });
+            if (!hasEdit)
+            {
+                AccountsChanged = true;
+                continue;
+            }
+
             if (edit.Password.Length > 0 && account.AuthMethod == AuthMethod.Password)
             {
                 _services.Credentials.Write(account.CredentialKey, account.UserName, edit.Password);

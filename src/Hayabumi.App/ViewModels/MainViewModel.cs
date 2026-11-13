@@ -932,7 +932,8 @@ public sealed partial class MainViewModel : ObservableObject
             }
 
             var filePath = listItem.FilePath;
-            var detail = await Task.Run(() => BuildDetail(listItem.Id, filePath, allowRemoteContent), cancellationToken);
+            var showRemote = allowRemoteContent || _services.AppSettings.AlwaysShowRemoteImages;
+            var detail = await Task.Run(() => BuildDetail(listItem.Id, filePath, showRemote), cancellationToken);
             if (cancellationToken.IsCancellationRequested)
             {
                 return;

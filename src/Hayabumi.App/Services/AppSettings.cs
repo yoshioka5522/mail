@@ -31,6 +31,13 @@ public sealed class AppSettings(SettingsRepository settings)
         set => settings.Set("app.close_to_tray", value);
     }
 
+    /// <summary>メール本文の外部の画像を、確認せずに常に表示する（既定はプライバシー保護のため表示しない）。</summary>
+    public bool AlwaysShowRemoteImages
+    {
+        get => settings.GetBool("display.always_show_remote_images", false);
+        set => settings.Set("display.always_show_remote_images", value);
+    }
+
     /// <summary>社内のドメイン（社外宛ての警告から除く）。改行またはカンマ区切り。</summary>
     public IReadOnlyList<string> InternalDomains
     {

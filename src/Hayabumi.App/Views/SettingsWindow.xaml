@@ -9,7 +9,7 @@
             <Button Margin="0,0,8,0" MinWidth="80" Content="保存" IsDefault="True" Click="OnSaveClick" />
             <Button MinWidth="80" Content="キャンセル" IsCancel="True" Margin="0" />
         </StackPanel>
-        <TabControl>
+        <TabControl x:Name="Tabs">
             <TabItem Header="全般">
                 <StackPanel Margin="16">
                     <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
@@ -22,6 +22,9 @@
                         <TextBox x:Name="UndoBox" Width="60" />
                         <TextBlock Text=" 秒（0 にするとすぐ送信）" VerticalAlignment="Center" Foreground="{StaticResource SubtleBrush}" />
                     </StackPanel>
+                    <CheckBox x:Name="AlwaysShowImagesBox" Margin="0,6">
+                        <TextBlock TextWrapping="Wrap">メール本文の画像を常に表示する<LineBreak /><Run Foreground="{StaticResource SubtleBrush}" FontSize="12">オフにすると、外部の画像は［画像を表示］を押したときだけ読み込みます（開封の追跡を防げます）</Run></TextBlock>
+                    </CheckBox>
                     <CheckBox x:Name="CloseToTrayBox" Content="ウィンドウを閉じても、タスクトレイで受信と通知を続ける" Margin="0,6" />
                     <CheckBox x:Name="StartWithWindowsBox" Content="Windows にサインインしたときに起動する（タスクトレイで起動）" Margin="0,6" />
                 </StackPanel>
@@ -29,7 +32,22 @@
             <TabItem Header="アカウント">
                 <DockPanel Margin="12">
                     <StackPanel DockPanel.Dock="Left" Width="200" Margin="0,0,12,0">
-                        <ListBox x:Name="AccountList" Height="320" DisplayMemberPath="EmailAddress" SelectionChanged="OnAccountSelected" />
+                        <TextBlock Text="表示する順番" Foreground="{StaticResource SubtleBrush}" FontSize="12" Margin="0,0,0,4" />
+                        <ListBox x:Name="AccountList" Height="280" DisplayMemberPath="EmailAddress" SelectionChanged="OnAccountSelected" />
+                        <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                            <Button Margin="0,0,6,0" Click="OnMoveUpClick" ToolTip="上へ">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock FontFamily="{StaticResource IconFont}" Text="&#xE70E;" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                    <TextBlock Text="上へ" />
+                                </StackPanel>
+                            </Button>
+                            <Button Click="OnMoveDownClick" ToolTip="下へ">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock FontFamily="{StaticResource IconFont}" Text="&#xE70D;" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                    <TextBlock Text="下へ" />
+                                </StackPanel>
+                            </Button>
+                        </StackPanel>
                         <Button MinWidth="80" Content="アカウントを削除" Click="OnDeleteAccountClick" Margin="0,8,0,0" HorizontalAlignment="Left" />
                     </StackPanel>
                     <StackPanel x:Name="AccountPanel" IsEnabled="False">

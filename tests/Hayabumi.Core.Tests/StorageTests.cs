@@ -45,6 +45,23 @@ public sealed class StorageTests : IDisposable
     }
 
     [Fact]
+    public void New_accounts_go_last_and_order_can_be_changed()
+    {
+        var a = _db.AddAccount("a@example.jp");
+        var b = _db.AddAccount("b@example.jp");
+        var c = _db.AddAccount("c@example.jp");
+        Assert.Equal(["a@example.jp", "b@example.jp", "c@example.jp"], _db.Accounts.GetAll().Select(x => x.EmailAddress));
+
+        _db.Accounts.Update(c with { SortOrder = 0 });
+        _db.Accounts.Update(a with { SortOrder = 1 });
+        _db.Accounts.Update(b with { SortOrder = 2 });
+        Assert.Equal(["c@example.jp", "a@example.jp", "b@example.jp"], _db.Accounts.GetAll().Select(x => x.EmailAddress));
+
+        _db.AddAccount("d@example.jp");
+        Assert.Equal("d@example.jp", _db.Accounts.GetAll()[^1].EmailAddress);
+    }
+
+    [Fact]
     public void Messages_are_listed_newest_first_and_duplicates_are_ignored()
     {
         var (accountId, folderId) = CreateInbox();

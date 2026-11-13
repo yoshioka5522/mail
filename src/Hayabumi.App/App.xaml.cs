@@ -124,7 +124,19 @@ public partial class App : Application
                     {
                         composeTimer.Stop();
                         ScreenCapture.Save(System.IO.Path.ChangeExtension(shotPath, null) + "-compose.png");
-                        window.ExitApplication();
+                        compose.Close();
+                        var settingsWindow = new Views.SettingsWindow(_services) { Owner = window };
+                        settingsWindow.Tabs.SelectedIndex = 1;
+                        settingsWindow.Show();
+                        var settingsTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
+                        settingsTimer.Tick += (_, _) =>
+                        {
+                            settingsTimer.Stop();
+                            ScreenCapture.Save(System.IO.Path.ChangeExtension(shotPath, null) + "-settings.png");
+                            settingsWindow.Close();
+                            window.ExitApplication();
+                        };
+                        settingsTimer.Start();
                     };
                     composeTimer.Start();
                 }

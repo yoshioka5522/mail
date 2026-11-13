@@ -19,7 +19,8 @@ public sealed class AccountRepository(MailDatabase database)
             """
             INSERT INTO accounts (display_name, email_address, incoming_protocol, incoming_host, incoming_port, incoming_security,
                                   outgoing_host, outgoing_port, outgoing_security, user_name, auth_method, sort_order, signature, created_at)
-            VALUES ($dn, $ea, $ip, $ih, $iport, $is, $oh, $oport, $os, $un, $am, $so, $sig, $ca)
+            VALUES ($dn, $ea, $ip, $ih, $iport, $is, $oh, $oport, $os, $un, $am,
+                    CASE WHEN $so > 0 THEN $so ELSE (SELECT IFNULL(MAX(sort_order) + 1, 0) FROM accounts) END, $sig, $ca)
             RETURNING id;
             """,
             ("$dn", account.DisplayName), ("$ea", account.EmailAddress), ("$ip", (int)account.IncomingProtocol),
@@ -27,7 +28,7 @@ public sealed class AccountRepository(MailDatabase database)
             ("$oh", account.Outgoing.Host), ("$oport", account.Outgoing.Port), ("$os", (int)account.Outgoing.Security),
             ("$un", account.UserName), ("$am", (int)account.AuthMethod), ("$so", account.SortOrder),
             ("$sig", account.Signature), ("$ca", DateTimeOffset.UtcNow.ToUnixMs()));
-        return account with { Id = id };
+        return Get(id)!;
     }
 
     public void Update(Account account)
